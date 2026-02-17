@@ -12,7 +12,7 @@ export default function Features() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Traditional */}
-        <div className="group backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-2xl p-7 flex flex-col gap-4 transition-all hover:bg-white/[0.05] hover:border-white/[0.09]">
+        <div className="group backdrop-blur-sm bg-white/[0.03] border border-white/[0.06] rounded-2xl p-7 flex flex-col gap-4 transition-all hover:bg-white/[0.05] hover:border-white/[0.09]">
           <div className="w-9 h-9 rounded-xl bg-white/[0.06] flex items-center justify-center text-white/30 group-hover:text-white/50 transition-colors">
             <svg
               viewBox="0 0 24 24"
@@ -41,7 +41,7 @@ export default function Features() {
         </div>
 
         {/* SourceFund */}
-        <div className="group backdrop-blur-xl bg-white/[0.03] border border-white/[0.06] rounded-2xl p-7 flex flex-col gap-4 transition-all hover:bg-white/[0.05] hover:border-white/[0.09]">
+        <div className="group backdrop-blur-sm bg-white/[0.03] border border-white/[0.06] rounded-2xl p-7 flex flex-col gap-4 transition-all hover:bg-white/[0.05] hover:border-white/[0.09]">
           <div className="w-9 h-9 rounded-xl bg-white/[0.06] flex items-center justify-center text-white/30 group-hover:text-white/50 transition-colors">
             <svg
               viewBox="0 0 24 24"
@@ -69,7 +69,7 @@ export default function Features() {
         </div>
 
         {/* The Result */}
-        <div className="group relative backdrop-blur-xl bg-white/[0.03] border border-white/[0.07] rounded-2xl p-7 flex flex-col gap-4 transition-all hover:bg-white/[0.05] hover:border-white/[0.1] overflow-hidden">
+        <div className="group relative backdrop-blur-sm bg-white/[0.03] border border-white/[0.07] rounded-2xl p-7 flex flex-col gap-4 transition-all hover:bg-white/[0.05] hover:border-white/[0.1] overflow-hidden">
           <div className="absolute top-0 right-0 w-[140px] h-[140px] bg-[radial-gradient(circle,rgba(255,255,255,0.025)_0%,transparent_70%)] pointer-events-none" />
           <div className="w-9 h-9 rounded-xl bg-white/[0.08] flex items-center justify-center text-white/50 group-hover:text-white/70 transition-colors">
             <svg

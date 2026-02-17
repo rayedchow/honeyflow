@@ -1,9 +1,9 @@
 export default function Navbar() {
   return (
-    <nav className="sticky top-0 z-50 backdrop-blur-2xl bg-white/[0.03] border-b border-white/[0.06]">
+    <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/[0.03] border-b border-white/[0.06]">
       <div className="max-w-[1200px] mx-auto px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-white/[0.1] backdrop-blur-sm flex items-center justify-center">
+        <a href="/" className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-white/[0.1] flex items-center justify-center">
             <svg
               viewBox="0 0 24 24"
               width="13"
@@ -20,13 +20,16 @@ export default function Navbar() {
           <span className="font-semibold text-[15px] tracking-tight text-white">
             SourceFund
           </span>
-        </div>
+        </a>
 
         <div className="flex items-center gap-8">
           <div className="hidden md:flex gap-6 text-[13px] text-white/40">
-            <span className="cursor-pointer hover:text-white/70 transition-colors">
+            <a
+              href="/explore"
+              className="hover:text-white/70 transition-colors"
+            >
               Projects
-            </span>
+            </a>
             <span className="cursor-pointer hover:text-white/70 transition-colors">
               Docs
             </span>

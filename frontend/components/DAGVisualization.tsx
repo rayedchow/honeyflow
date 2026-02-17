@@ -192,7 +192,7 @@ export default function DAGVisualization() {
   }, []);
 
   return (
-    <div className="relative h-[460px] w-full rounded-2xl backdrop-blur-sm bg-white/[0.02] border border-white/[0.05] overflow-hidden">
+    <div className="relative h-[460px] w-full rounded-2xl bg-white/[0.02] border border-white/[0.05] overflow-hidden">
       <div
         ref={containerRef}
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] h-[90%]"
@@ -213,7 +213,7 @@ export default function DAGVisualization() {
                 top: `${node.y}%`,
               }}
             >
-              <span className="value-tag absolute -top-7 bg-white/[0.07] backdrop-blur-sm px-2 py-0.5 rounded text-[9px] font-mono font-medium text-white/50 opacity-0 -translate-y-1 transition-all duration-300 whitespace-nowrap">
+              <span className="value-tag absolute -top-7 bg-white/[0.07] px-2 py-0.5 rounded text-[9px] font-mono font-medium text-white/50 opacity-0 -translate-y-1 transition-all duration-300 whitespace-nowrap">
                 {node.label}
               </span>
               <svg

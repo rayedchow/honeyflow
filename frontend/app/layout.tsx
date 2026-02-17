@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Navbar from "@/components/Navbar";
+import Background from "@/components/Background";
 
 export const metadata: Metadata = {
   title: "SourceFund - Recursive Funding Protocol",
@@ -14,7 +16,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <div className="relative min-h-screen">
+          <Background />
+          <div className="relative z-10 min-h-screen flex flex-col">
+            <Navbar />
+            <main className="flex-1 max-w-[1200px] w-full mx-auto px-6">
+              {children}
+            </main>
+          </div>
+        </div>
+      </body>
     </html>
   );
 }
