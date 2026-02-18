@@ -1,6 +1,6 @@
 export default function Navbar() {
   return (
-    <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/[0.03] border-b border-white/[0.06]">
+    <nav className="sticky top-0 z-50 backdrop-blur-lg bg-white/[0.04] border-b border-white/[0.07]">
       <div className="max-w-[1200px] mx-auto px-6 py-4 flex justify-between items-center">
         <a href="/" className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-white/[0.1] flex items-center justify-center">
@@ -23,17 +23,17 @@ export default function Navbar() {
         </a>
 
         <div className="flex items-center gap-8">
-          <div className="hidden md:flex gap-6 text-[13px] text-white/40">
+          <div className="hidden md:flex gap-6 text-[13px] text-white/50">
             <a
               href="/explore"
-              className="hover:text-white/70 transition-colors"
+              className="hover:text-white/80 transition-colors"
             >
               Projects
             </a>
-            <span className="cursor-pointer hover:text-white/70 transition-colors">
+            <span className="cursor-pointer hover:text-white/80 transition-colors">
               Docs
             </span>
-            <span className="cursor-pointer hover:text-white/70 transition-colors">
+            <span className="cursor-pointer hover:text-white/80 transition-colors">
               About
             </span>
           </div>
