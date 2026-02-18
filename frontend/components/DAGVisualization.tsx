@@ -213,7 +213,7 @@ export default function DAGVisualization() {
                 top: `${node.y}%`,
               }}
             >
-              <span className="value-tag absolute -top-7 bg-white/[0.07] px-2 py-0.5 rounded text-[9px] font-mono font-medium text-white/50 opacity-0 -translate-y-1 transition-all duration-300 whitespace-nowrap">
+              <span className="value-tag absolute -top-7 bg-white/[0.1] px-2 py-0.5 rounded text-[9px] font-mono font-medium text-white/65 opacity-0 -translate-y-1 transition-all duration-300 whitespace-nowrap">
                 {node.label}
               </span>
               <svg
