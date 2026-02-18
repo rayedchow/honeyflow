@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routes import contributions, graph
+from app.routes import citation_graph, contributions, graph
 
 
 def _setup_logging() -> None:
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
 
     app.include_router(contributions.router)
     app.include_router(graph.router)
+    app.include_router(citation_graph.router)
 
     @app.get("/health")
     async def health_check():

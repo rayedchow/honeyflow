@@ -16,6 +16,11 @@ class GraphDefaults(BaseModel):
     contributor_commits_weight: float = 0.2
 
 
+class CitationDefaults(BaseModel):
+    max_depth: int = 2
+    max_citations: int = 3
+
+
 class Settings(BaseSettings):
     app_name: str = "Contribution Tracer"
     debug: bool = False
@@ -28,6 +33,7 @@ class Settings(BaseSettings):
     gemini_api_base: str = "https://generativelanguage.googleapis.com/v1beta"
 
     graph: GraphDefaults = GraphDefaults()
+    citation: CitationDefaults = CitationDefaults()
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

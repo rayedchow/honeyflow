@@ -253,3 +253,178 @@ Respond with ONLY a JSON object mapping each dependency name to its score:
         blended[name] = (w_usage * norm_usage) + (w_llm * llm_score)
 
     return blended
+
+
+# ------------------------------------------------------------------
+# Gemini with Google Search grounding (for citation influence)
+# ------------------------------------------------------------------
+
+async def _call_gemini_with_search(prompt: str, label: str = "gemini_search") -> Optional[str]:
+    """Send a prompt to Gemini with Google Search grounding enabled.
+
+    Web search grounding is incompatible with response_mime_type: application/json,
+    so we rely on the prompt asking for JSON and parse it from the markdown response.
+    """
+    if not settings.gemini_api_key:
+        logger.info("[LLM]  No Gemini API key configured, skipping %s", label)
+        return None
+
+    url = "{}/models/{}:generateContent".format(
+        settings.gemini_api_base, settings.gemini_model
+    )
+    params = {"key": settings.gemini_api_key}
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {"temperature": 0.1},
+    }
+
+    logger.info("[LLM]  Calling Gemini+Search (%s) model=%s ...", label, settings.gemini_model)
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(url, params=params, json=body)
+            resp.raise_for_status()
+
+        data = resp.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            logger.warning("[LLM]  Gemini+Search returned no candidates for %s", label)
+            return None
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = parts[0].get("text", "") if parts else None
+        logger.info("[LLM]  Gemini+Search %s response: %d chars", label, len(text or ""))
+        return text
+    except Exception as exc:
+        logger.warning("[LLM]  Gemini+Search API call failed (%s): %s", label, exc)
+        return None
+
+
+# ------------------------------------------------------------------
+# Citation influence ranking
+# ------------------------------------------------------------------
+
+async def rank_citation_influence(
+    paper_title: str,
+    paper_abstract: str,
+    categories: List[str],
+    citations: List[Dict[str, Any]],
+) -> Dict[str, float]:
+    """Ask Gemini (with web search) to rank citations by intellectual influence.
+
+    Each citation dict should have: key, title, authors, year, frequency, contexts.
+    Returns {cite_key: influence_score (0..1)}.
+    """
+    if not citations:
+        return {}
+
+    citation_summaries = []
+    for c in citations[:30]:
+        ctx_text = ""
+        if c.get("contexts"):
+            snippets = c["contexts"][:2]
+            ctx_text = " Contexts: " + " | ".join(
+                '"{}"'.format(s[:150]) for s in snippets
+            )
+        authors_str = ", ".join(c.get("authors", [])[:3]) or "unknown"
+        citation_summaries.append(
+            "- [{key}] \"{title}\" by {authors} ({year}). "
+            "Cited {freq} times.{ctx}".format(
+                key=c.get("key", "?"),
+                title=c.get("title", "untitled")[:100],
+                authors=authors_str,
+                year=c.get("year", "?"),
+                freq=c.get("frequency", 0),
+                ctx=ctx_text,
+            )
+        )
+
+    prompt = """You are analyzing a research paper's citations to determine its intellectual lineage.
+Your goal is to identify which cited works this paper most fundamentally BUILDS UPON or EXTENDS —
+not just which papers are mentioned most often.
+
+A paper cited once as "We extend the architecture of [X]" is MORE influential than
+a utility paper cited 20 times as "we use the optimizer from [Y]".
+
+Use Google Search to look up papers you are uncertain about to understand their real
+significance and relationship to this paper.
+
+Paper being analyzed:
+  Title: {title}
+  Abstract: {abstract}
+  Categories: {categories}
+
+Citations:
+{citation_list}
+
+Rate each citation from 0.0 to 1.0 on how foundational it is to this paper's CORE CONTRIBUTION.
+
+Scoring guide:
+  0.8-1.0: Foundational work this paper directly extends or builds upon
+  0.5-0.7: Significant methodological or theoretical influence
+  0.2-0.4: Useful comparison, baseline, or supporting technique
+  0.0-0.1: Incidental mention, dataset source, or general reference
+
+Respond with ONLY a JSON object:
+{{"cite_key": score, ...}}""".format(
+        title=paper_title,
+        abstract=paper_abstract[:1500],
+        categories=", ".join(categories[:5]),
+        citation_list="\n".join(citation_summaries),
+    )
+
+    raw = await _call_gemini_with_search(prompt, label="citation_influence")
+    result = _parse_json_response(raw)
+
+    if isinstance(result, dict):
+        logger.info("[LLM]  Got influence scores for %d/%d citations",
+                    len(result), len(citations))
+        scores: Dict[str, float] = {}
+        for c in citations:
+            key = c.get("key", "")
+            score = result.get(key, 0.2)
+            if not isinstance(score, (int, float)):
+                score = 0.2
+            scores[key] = max(0.0, min(1.0, float(score)))
+        return scores
+
+    logger.info("[LLM]  No LLM influence scores, falling back to frequency-based ranking")
+    max_freq = max((c.get("frequency", 1) for c in citations), default=1) or 1
+    return {
+        c.get("key", ""): c.get("frequency", 0) / max_freq
+        for c in citations
+    }
+
+
+async def analyze_paper(
+    title: str,
+    abstract: str,
+    categories: List[str],
+) -> Dict[str, Any]:
+    """Ask Gemini to classify a paper's contribution and research area."""
+    prompt = """You are analyzing a research paper.
+
+Title: {title}
+Abstract: {abstract}
+Categories: {categories}
+
+Respond with ONLY a JSON object:
+{{
+  "contribution": "one-sentence description of the paper's main contribution",
+  "research_area": "broad research area (e.g. 'machine learning', 'cryptography')",
+  "paper_type": "theoretical|empirical|survey|system|benchmark|other"
+}}""".format(
+        title=title,
+        abstract=abstract[:2000],
+        categories=", ".join(categories[:5]),
+    )
+
+    result = _parse_json_response(await _call_gemini(prompt, label="analyze_paper"))
+    if isinstance(result, dict) and "contribution" in result:
+        logger.info("[LLM]  Paper analysis: %s", result.get("contribution", "")[:80])
+        return result
+
+    return {
+        "contribution": abstract[:200] if abstract else "Unknown",
+        "research_area": categories[0] if categories else "unknown",
+        "paper_type": "other",
+    }
