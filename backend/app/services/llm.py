@@ -1,0 +1,250 @@
+"""Gemini LLM integration for semantic analysis.
+
+Uses the Gemini REST API directly via httpx. Falls back to heuristic
+values when no API key is configured.
+"""
+
+import json
+import logging
+from typing import Any, Dict, List, Optional, Tuple
+
+import httpx
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
+
+
+async def _call_gemini(prompt: str, label: str = "gemini") -> Optional[str]:
+    """Send a prompt to Gemini and return the text response."""
+    if not settings.gemini_api_key:
+        logger.info("[LLM]  No Gemini API key configured, skipping %s", label)
+        return None
+
+    url = "{}/models/{}:generateContent".format(
+        settings.gemini_api_base, settings.gemini_model
+    )
+    params = {"key": settings.gemini_api_key}
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "response_mime_type": "application/json",
+            "temperature": 0.1,
+        },
+    }
+
+    logger.info("[LLM]  Calling Gemini (%s) model=%s ...", label, settings.gemini_model)
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(url, params=params, json=body)
+            resp.raise_for_status()
+
+        data = resp.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            logger.warning("[LLM]  Gemini returned no candidates for %s", label)
+            return None
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = parts[0].get("text", "") if parts else None
+        logger.info("[LLM]  Gemini %s response: %d chars", label, len(text or ""))
+        return text
+    except Exception as exc:
+        logger.warning("[LLM]  Gemini API call failed (%s): %s", label, exc)
+        return None
+
+
+def _parse_json_response(raw: Optional[str]) -> Optional[Any]:
+    """Safely parse a JSON response from the LLM."""
+    if not raw:
+        return None
+    try:
+        return json.loads(raw.strip())
+    except json.JSONDecodeError:
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.splitlines()
+            lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            cleaned = "\n".join(lines)
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse LLM JSON: %.200s", raw)
+            return None
+
+
+def _extract_float(d: Dict, keys: tuple) -> Optional[float]:
+    """Try multiple key names to extract a float from a dict."""
+    for k in keys:
+        val = d.get(k)
+        if isinstance(val, (int, float)):
+            return float(val)
+    return None
+
+
+# ------------------------------------------------------------------
+# Repo analysis
+# ------------------------------------------------------------------
+
+async def analyze_repo(
+    readme: str,
+    metadata: Dict[str, Any],
+    file_tree: str,
+) -> Dict[str, Any]:
+    """Ask Gemini to classify the repo's purpose and tech stack."""
+    prompt = """You are analyzing a GitHub repository.
+
+Description: {description}
+Languages: {languages}
+
+README (first 4000 chars):
+{readme}
+
+File structure:
+{file_tree}
+
+Respond with ONLY a JSON object:
+{{
+  "purpose": "one-sentence description of what this project does",
+  "tech_stack": ["key", "technologies"],
+  "project_type": "library|application|framework|tool|other"
+}}""".format(
+        description=metadata.get("description", ""),
+        languages=json.dumps(metadata.get("languages", {})),
+        readme=readme or "(no README)",
+        file_tree=file_tree[:3000],
+    )
+
+    result = _parse_json_response(await _call_gemini(prompt, label="analyze_repo"))
+    if isinstance(result, dict) and "purpose" in result:
+        logger.info("[LLM]  Repo analysis: purpose=%s, type=%s",
+                    result.get("purpose", "")[:80], result.get("project_type"))
+        return result
+
+    logger.info("[LLM]  Using heuristic repo analysis (no LLM response)")
+    return {
+        "purpose": metadata.get("description", "Unknown project"),
+        "tech_stack": list((metadata.get("languages") or {}).keys())[:5],
+        "project_type": "application",
+    }
+
+
+# ------------------------------------------------------------------
+# Direct-vs-dependencies split
+# ------------------------------------------------------------------
+
+async def split_direct_vs_deps(
+    repo_analysis: Dict[str, Any],
+    dep_count: int,
+    source_file_count: int,
+) -> Tuple[float, float]:
+    """Ask Gemini what fraction of value comes from custom code vs deps."""
+    prompt = """You are evaluating how much of a software project's value comes from its original code versus its dependencies.
+
+Project purpose: {purpose}
+Project type: {project_type}
+Tech stack: {tech_stack}
+Number of source files: {source_files}
+Number of dependencies: {dep_count}
+
+What fraction of this project's value comes from its original custom code vs its dependencies?
+
+Respond with ONLY a JSON object:
+{{"direct_fraction": 0.XX, "deps_fraction": 0.XX}}
+The two values MUST sum to exactly 1.0.""".format(
+        purpose=repo_analysis.get("purpose", "Unknown"),
+        project_type=repo_analysis.get("project_type", "application"),
+        tech_stack=json.dumps(repo_analysis.get("tech_stack", [])),
+        source_files=source_file_count,
+        dep_count=dep_count,
+    )
+
+    raw_text = await _call_gemini(prompt, label="direct_vs_deps")
+    result = _parse_json_response(raw_text)
+    if isinstance(result, dict):
+        logger.info("[LLM]  direct_vs_deps parsed: %s", result)
+        direct = _extract_float(result, ("direct_fraction", "direct", "custom_code", "original_code"))
+        deps = _extract_float(result, ("deps_fraction", "deps", "dependencies", "dependency_fraction"))
+        if direct is not None and deps is not None:
+            total = direct + deps
+            if total > 0:
+                d, p = (direct / total, deps / total)
+                logger.info("[LLM]  Split -> direct=%.1f%% deps=%.1f%%", d * 100, p * 100)
+                return (d, p)
+        logger.warning("[LLM]  Could not extract fractions from: %s", result)
+    else:
+        logger.warning("[LLM]  direct_vs_deps response not valid JSON: %.200s", raw_text)
+
+    if dep_count == 0:
+        logger.info("[LLM]  No deps -> direct=100%%")
+        return (1.0, 0.0)
+    logger.info("[LLM]  Using heuristic split -> direct=60%% deps=40%%")
+    return (0.6, 0.4)
+
+
+# ------------------------------------------------------------------
+# Dependency importance ranking
+# ------------------------------------------------------------------
+
+async def rank_dependency_importance(
+    repo_analysis: Dict[str, Any],
+    dep_names: List[str],
+    usage_freq: Dict[str, int],
+) -> Dict[str, float]:
+    """Ask Gemini to rate each dependency's importance, then blend with usage frequency.
+
+    Returns a dict of dep_name -> blended importance score (0..1).
+    """
+    if not dep_names:
+        return {}
+
+    dep_summary = []
+    for name in dep_names[:40]:
+        freq = usage_freq.get(name, 0)
+        dep_summary.append("  {}: imported in {} files".format(name, freq))
+
+    prompt = """You are ranking dependencies by how critical they are to a project's core functionality.
+
+Project purpose: {purpose}
+Tech stack: {tech_stack}
+Project type: {project_type}
+
+Dependencies and their import frequency:
+{dep_list}
+
+Rate each dependency from 0.0 to 1.0 on how critical it is to the project's core functionality.
+Dev tools, linters, test frameworks, and type stubs should score LOW (0.05 to 0.2).
+Core runtime dependencies that the project fundamentally relies on should score HIGH (0.6 to 1.0).
+
+Respond with ONLY a JSON object mapping each dependency name to its score:
+{{"dep_name": 0.X, ...}}""".format(
+        purpose=repo_analysis.get("purpose", "Unknown"),
+        tech_stack=json.dumps(repo_analysis.get("tech_stack", [])),
+        project_type=repo_analysis.get("project_type", "application"),
+        dep_list="\n".join(dep_summary),
+    )
+
+    llm_scores = _parse_json_response(await _call_gemini(prompt, label="dep_ranking"))
+    if not isinstance(llm_scores, dict):
+        logger.info("[LLM]  No LLM dep scores, using usage frequency only")
+        llm_scores = {}
+    else:
+        logger.info("[LLM]  Got LLM dep scores for %d/%d deps", len(llm_scores), len(dep_names))
+
+    max_freq = max(usage_freq.values()) if usage_freq else 1
+    w_usage = settings.graph.usage_freq_weight
+    w_llm = settings.graph.llm_importance_weight
+    blended: Dict[str, float] = {}
+
+    for name in dep_names:
+        norm_usage = (usage_freq.get(name, 0) / max_freq) if max_freq > 0 else 0.0
+        llm_score = llm_scores.get(name, 0.3)
+        if not isinstance(llm_score, (int, float)):
+            llm_score = 0.3
+        llm_score = max(0.0, min(1.0, float(llm_score)))
+        blended[name] = (w_usage * norm_usage) + (w_llm * llm_score)
+
+    return blended
