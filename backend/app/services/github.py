@@ -20,9 +20,7 @@ from app.schemas.contributions import Contributor
 logger = logging.getLogger(__name__)
 
 
-_GITHUB_REPO_PATTERN = re.compile(
-    r"^/(?P<owner>[^/]+)/(?P<repo>[^/.]+?)(?:\.git)?/?$"
-)
+_GITHUB_REPO_PATTERN = re.compile(r"^/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$")
 
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 _TARBALL_TIMEOUT = httpx.Timeout(120.0, connect=10.0)
@@ -59,6 +57,7 @@ def parse_repo_owner_and_name(repo_url: str) -> Tuple[str, str]:
 # Basic contributor list (used by /trace_contributions)
 # ------------------------------------------------------------------
 
+
 async def fetch_top_contributors(
     repo_url: str,
     *,
@@ -71,7 +70,7 @@ async def fetch_top_contributors(
     params: Dict[str, Any] = {"per_page": limit * 2, "anon": "false"}
 
     logger.info("GET  %s/%s contributors (limit=%d)", owner, repo, limit)
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
         response = await client.get(url, headers=_headers(), params=params)
         response.raise_for_status()
 
@@ -88,11 +87,12 @@ async def fetch_top_contributors(
 # Repo metadata
 # ------------------------------------------------------------------
 
+
 async def fetch_repo_metadata(owner: str, repo: str) -> Dict[str, Any]:
     """Fetch basic repo info and language breakdown."""
     logger.info("GET  %s/%s metadata + languages", owner, repo)
     base = settings.github_api_base
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
         repo_resp = await client.get(
             "{}/repos/{}/{}".format(base, owner, repo), headers=_headers()
         )
@@ -104,8 +104,13 @@ async def fetch_repo_metadata(owner: str, repo: str) -> Dict[str, Any]:
         )
         languages = lang_resp.json() if lang_resp.status_code == 200 else {}
 
-    logger.info("     %s/%s -> %s, %d languages", owner, repo,
-                repo_data.get("description", "")[:60], len(languages))
+    logger.info(
+        "     %s/%s -> %s, %d languages",
+        owner,
+        repo,
+        repo_data.get("description", "")[:60],
+        len(languages),
+    )
     return {
         "description": repo_data.get("description") or "",
         "default_branch": repo_data.get("default_branch", "main"),
@@ -121,7 +126,7 @@ async def fetch_readme(owner: str, repo: str, max_chars: int = 4000) -> str:
     url = "{}/repos/{}/{}/readme".format(settings.github_api_base, owner, repo)
     headers = {**_headers(), "Accept": "application/vnd.github.raw+json"}
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
         resp = await client.get(url, headers=headers)
         if resp.status_code == 404:
             logger.info("     %s/%s README not found", owner, repo)
@@ -137,6 +142,7 @@ async def fetch_readme(owner: str, repo: str, max_chars: int = 4000) -> str:
 # Tarball download + extract
 # ------------------------------------------------------------------
 
+
 async def download_repo_tarball(owner: str, repo: str) -> str:
     """Download and extract a repo tarball. Returns path to extracted root.
 
@@ -148,7 +154,9 @@ async def download_repo_tarball(owner: str, repo: str) -> str:
     tmp_dir = tempfile.mkdtemp(prefix="repotrace_")
     tarball_path = os.path.join(tmp_dir, "repo.tar.gz")
 
-    async with httpx.AsyncClient(timeout=_TARBALL_TIMEOUT, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=_TARBALL_TIMEOUT, follow_redirects=True
+    ) as client:
         resp = await client.get(url, headers=_headers())
         resp.raise_for_status()
 
@@ -175,11 +183,21 @@ async def download_repo_tarball(owner: str, repo: str) -> str:
 # File tree (from an extracted directory)
 # ------------------------------------------------------------------
 
+
 def build_file_tree(source_dir: str, max_depth: int = 2) -> str:
     """Build a compact string representation of the file tree."""
     lines: List[str] = []
     base = os.path.basename(source_dir)
-    skip = {"node_modules", ".git", "__pycache__", ".venv", "venv", "target", "dist", "build"}
+    skip = {
+        "node_modules",
+        ".git",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "target",
+        "dist",
+        "build",
+    }
 
     def _walk(path: str, prefix: str, depth: int) -> None:
         if depth > max_depth:
@@ -188,7 +206,9 @@ def build_file_tree(source_dir: str, max_depth: int = 2) -> str:
             entries = sorted(os.listdir(path))
         except OSError:
             return
-        dirs = [e for e in entries if os.path.isdir(os.path.join(path, e)) and e not in skip]
+        dirs = [
+            e for e in entries if os.path.isdir(os.path.join(path, e)) and e not in skip
+        ]
         files = [e for e in entries if os.path.isfile(os.path.join(path, e))]
         for f in files:
             lines.append("{}{}".format(prefix, f))
@@ -205,6 +225,7 @@ def build_file_tree(source_dir: str, max_depth: int = 2) -> str:
 # Detailed contributor stats (with lines changed)
 # ------------------------------------------------------------------
 
+
 async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]:
     """Fetch per-author contribution stats.
 
@@ -219,13 +240,17 @@ async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]
     )
 
     logger.info("GET  %s/%s stats/contributors (detailed)", owner, repo)
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
         resp = await client.get(stats_url, headers=_headers())
 
         retries = 3
         while resp.status_code == 202 and retries > 0:
-            logger.info("     %s/%s GitHub is computing stats, waiting... (%d/3)",
-                        owner, repo, 4 - retries)
+            logger.info(
+                "     %s/%s GitHub is computing stats, waiting... (%d/3)",
+                owner,
+                repo,
+                4 - retries,
+            )
             await asyncio.sleep(3)
             resp = await client.get(stats_url, headers=_headers())
             retries -= 1
@@ -233,12 +258,19 @@ async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]
         if resp.status_code == 200:
             raw: List[Dict] = resp.json()
             if isinstance(raw, list) and raw:
-                logger.info("     %s/%s got detailed stats for %d contributors",
-                            owner, repo, len(raw))
+                logger.info(
+                    "     %s/%s got detailed stats for %d contributors",
+                    owner,
+                    repo,
+                    len(raw),
+                )
                 return _parse_detailed_stats(raw)
 
-        logger.info("     %s/%s detailed stats not ready yet, using basic contributor list instead",
-                    owner, repo)
+        logger.info(
+            "     %s/%s detailed stats not ready yet, using basic contributor list instead",
+            owner,
+            repo,
+        )
         fallback_url = "{}/repos/{}/{}/contributors".format(
             settings.github_api_base, owner, repo
         )
@@ -246,8 +278,12 @@ async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]
             fallback_url, headers=_headers(), params={"per_page": 30}
         )
         if resp.status_code != 200:
-            logger.warning("     %s/%s contributors fallback also failed (%d)",
-                           owner, repo, resp.status_code)
+            logger.warning(
+                "     %s/%s contributors fallback also failed (%d)",
+                owner,
+                repo,
+                resp.status_code,
+            )
             return []
 
     data: List[Dict] = resp.json()
@@ -275,14 +311,16 @@ def _parse_detailed_stats(raw: List[Dict]) -> List[Dict[str, Any]]:
         total_add = sum(w.get("a", 0) for w in weeks)
         total_del = sum(w.get("d", 0) for w in weeks)
         total_commits = sum(w.get("c", 0) for w in weeks)
-        results.append({
-            "login": author["login"],
-            "avatar_url": author.get("avatar_url", ""),
-            "total_commits": total_commits,
-            "total_additions": total_add,
-            "total_deletions": total_del,
-            "total_lines": total_add + total_del,
-        })
+        results.append(
+            {
+                "login": author["login"],
+                "avatar_url": author.get("avatar_url", ""),
+                "total_commits": total_commits,
+                "total_additions": total_add,
+                "total_deletions": total_del,
+                "total_lines": total_add + total_del,
+            }
+        )
     results.sort(key=lambda x: x["total_lines"], reverse=True)
     return results
 
@@ -291,16 +329,21 @@ def _parse_detailed_stats(raw: List[Dict]) -> List[Dict[str, Any]]:
 # Fetch a single file via Contents API (for dep manifests at depth > 0)
 # ------------------------------------------------------------------
 
+
 async def fetch_file_content(owner: str, repo: str, path: str) -> Optional[str]:
     """Fetch a single file from a repo via the Contents API."""
     logger.info("GET  %s/%s contents/%s", owner, repo, path)
-    url = "{}/repos/{}/{}/contents/{}".format(settings.github_api_base, owner, repo, path)
+    url = "{}/repos/{}/{}/contents/{}".format(
+        settings.github_api_base, owner, repo, path
+    )
     headers = {**_headers(), "Accept": "application/vnd.github.raw+json"}
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
         resp = await client.get(url, headers=headers)
         if resp.status_code != 200:
-            logger.info("     %s/%s %s not found (%d)", owner, repo, path, resp.status_code)
+            logger.info(
+                "     %s/%s %s not found (%d)", owner, repo, path, resp.status_code
+            )
             return None
 
     logger.info("     %s/%s %s fetched (%d bytes)", owner, repo, path, len(resp.text))

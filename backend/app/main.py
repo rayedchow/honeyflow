@@ -19,7 +19,9 @@ def create_app() -> FastAPI:
     _setup_logging()
     log = logging.getLogger(__name__)
     log.info("GitHub token: %s", "configured" if settings.github_token else "NOT SET")
-    log.info("Gemini API key: %s", "configured" if settings.gemini_api_key else "NOT SET")
+    log.info(
+        "Gemini API key: %s", "configured" if settings.gemini_api_key else "NOT SET"
+    )
     log.info("Gemini model: %s", settings.gemini_model)
 
     app = FastAPI(

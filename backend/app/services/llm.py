@@ -82,6 +82,11 @@ def _extract_float(d: Dict, keys: tuple) -> Optional[float]:
         val = d.get(k)
         if isinstance(val, (int, float)):
             return float(val)
+        if isinstance(val, str):
+            try:
+                return float(val)
+            except ValueError:
+                continue
     return None
 
 
