@@ -14,18 +14,18 @@ A Next.js application that showcases a recursive funding model for open-source p
 ### Prerequisites
 
 - Node.js 20.17.0 or higher
-- npm
+- pnpm
 
 ### Installation
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### Development
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
@@ -33,8 +33,8 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 ### Build
 
 ```bash
-npm run build
-npm start
+pnpm run build
+pnpm start
 ```
 
 ## Project Structure
@@ -75,7 +75,7 @@ Comparison cards showing:
 - **UI Library**: React 19
 - **Styling**: Tailwind CSS 3.4
 - **Language**: TypeScript 5
-- **Package Manager**: npm
+- **Package Manager**: pnpm
 
 ## Design Highlights
 
