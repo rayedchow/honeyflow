@@ -5,6 +5,7 @@ export default function Footer() {
         HONEYFLOW
       </h2>
       <p className="text-xs text-black/40 font-sans pb-4 pt-2">© 2026 HoneyFlow.</p>
+
     </footer>
   );
 }

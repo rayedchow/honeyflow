@@ -243,14 +243,14 @@ function AnimatedCards() {
                 }}
             >
                 {CARDS.map((MeasureCard, i) => (
-                    <div key={i} className="bg-black rounded-2xl">
+                    <div key={i} className="hero-card-box rounded-2xl">
                         <MeasureCard phase="idle" />
                     </div>
                 ))}
             </div>
 
             <div
-                className="w-full bg-black rounded-2xl overflow-hidden"
+                className="w-full hero-card-box rounded-2xl overflow-hidden"
                 style={{
                     height: containerHeight ? `${containerHeight}px` : 'auto',
                     transition: transitioning

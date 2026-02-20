@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import DarkModeToggle from './DarkModeToggle';
 
 export default function Navbar() {
   return (
@@ -21,17 +22,19 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center gap-8 text-[10px] font-mono tracking-widest text-[#888888] uppercase font-bold">
-            <Link href="/primitives" className="hover:text-black transition-colors">Manifesto</Link>
             <Link href="/explore" className="hover:text-black transition-colors">Explore</Link>
             <Link href="/docs" className="hover:text-black transition-colors">Documentation</Link>
           </div>
 
-          <Link
-            href="/sign-up"
-            className="px-6 py-2.5 bg-black text-white font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-gray-800 transition-colors"
-          >
-            Sign Up →
-          </Link>
+          <div className="flex items-center gap-3">
+            <DarkModeToggle />
+            <Link
+              href="/sign-up"
+              className="px-6 py-2.5 bg-black text-white font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-gray-800 transition-colors"
+            >
+              Sign Up →
+            </Link>
+          </div>
         </div>
       </div>
     </div>

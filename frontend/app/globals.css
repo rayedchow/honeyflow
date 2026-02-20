@@ -50,6 +50,155 @@ h6 {
   border-color: rgba(0, 0, 0, 0.05);
 }
 
+/* Dark mode overrides */
+.dark {
+  --background: #0A0A0A;
+  --foreground: #EAEAEA;
+}
+
+.dark body {
+  background-color: #0A0A0A;
+  color: #EAEAEA;
+}
+
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  color: #EAEAEA;
+}
+
+.dark .bg-white,
+.dark .bg-agentbase-bg {
+  background-color: #0A0A0A !important;
+}
+
+.dark .bg-white\/90,
+.dark .bg-agentbase-bg\/90 {
+  background-color: rgba(10, 10, 10, 0.9) !important;
+}
+
+.dark .bg-agentbase-surface {
+  background-color: #111111 !important;
+}
+
+.dark .bg-black {
+  background-color: #EAEAEA !important;
+}
+
+.dark .bg-black .text-white,
+.dark .bg-black .text-white\/60 {
+  color: #0A0A0A !important;
+}
+
+.dark .text-black,
+.dark .text-agentbase-text {
+  color: #EAEAEA !important;
+}
+
+.dark .text-white {
+  color: #0A0A0A !important;
+}
+
+.dark .text-\[\#666666\],
+.dark .text-agentbase-muted {
+  color: #999999 !important;
+}
+
+.dark .text-\[\#888888\] {
+  color: #777777 !important;
+}
+
+.dark .text-black\/40,
+.dark .text-black\/60 {
+  color: rgba(234, 234, 234, 0.4) !important;
+}
+
+.dark .border-agentbase-border,
+.dark .border-b {
+  border-color: #222222 !important;
+}
+
+.dark .border-x {
+  border-color: #222222 !important;
+}
+
+.dark .border-black {
+  border-color: #EAEAEA !important;
+}
+
+.dark .bg-\[\#F5F5F5\],
+.dark .bg-\[\#F3F4F6\] {
+  background-color: #1A1A1A !important;
+}
+
+.dark .hover\:bg-gray-50:hover {
+  background-color: #1A1A1A !important;
+}
+
+.dark .hover\:bg-gray-800:hover {
+  background-color: #CCCCCC !important;
+}
+
+.dark .hover\:text-black:hover {
+  color: #EAEAEA !important;
+}
+
+.dark .hover\:bg-black:hover {
+  background-color: #EAEAEA !important;
+}
+
+.dark .hover\:text-white:hover {
+  color: #0A0A0A !important;
+}
+
+.dark .hover\:border-black:hover {
+  border-color: #EAEAEA !important;
+}
+
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+/* Hero animated card box */
+.hero-card-box {
+  background-color: #000000;
+}
+
+.dark .hero-card-box {
+  background-color: #EAEAEA !important;
+}
+
+.dark .hero-card-box .text-white {
+  color: #000000 !important;
+}
+
+.dark .hero-card-box .text-white\/60 {
+  color: rgba(0, 0, 0, 0.6) !important;
+}
+
+.dark .hero-card-box .bg-white {
+  background-color: #000000 !important;
+}
+
+.dark .hero-card-box .bg-white .text-black {
+  color: #EAEAEA !important;
+}
+
+.dark .hero-card-box .bg-agentbase-cyan {
+  background-color: #FEC508 !important;
+}
+
+/* Keep yellow untouched */
+.dark .text-yellow-400 { color: #facc15 !important; }
+.dark .bg-yellow-400 { background-color: #facc15 !important; }
+.dark .text-agentbase-yellow { color: #FEC508 !important; }
+.dark .text-agentbase-cyan { color: #FEC508 !important; }
+.dark .bg-agentbase-cyan { background-color: #FEC508 !important; }
+
 @keyframes bounceIn {
   from { transform: scale(0.3); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
