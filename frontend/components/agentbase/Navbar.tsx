@@ -23,18 +23,20 @@ export default function Navbar({ maxW = "64rem" }: { maxW?: string }) {
           className="w-full px-8 h-16 flex items-center justify-between relative bg-[var(--ab-bg)] backdrop-blur-md border-x border-b border-agentbase-border transition-[max-width] duration-700 ease-in-out"
           style={{ maxWidth: maxW }}
         >
-          <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tighter text-agentbase-text">
-            <Image src="/logo.svg" alt="HoneyFlow" width={28} height={28} />
-            HoneyFlow
-          </Link>
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tighter text-agentbase-text">
+              <Image src="/logo.svg" alt="HoneyFlow" width={28} height={28} />
+              HoneyFlow
+            </Link>
 
-          <Link href="/explore" className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 text-agentbase-text hover:opacity-70 transition-opacity" aria-label="Discover">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-            </svg>
-            <span className="text-[11px] font-mono font-bold tracking-widest uppercase">Explore</span>
-          </Link>
+            <Link href="/explore" className="flex items-center gap-2 text-agentbase-text hover:opacity-70 transition-opacity" aria-label="Discover">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+              </svg>
+              <span className="text-[11px] font-mono font-bold tracking-widest uppercase">Explore</span>
+            </Link>
+          </div>
 
           <div className="flex items-center gap-3">
             <DarkModeToggle />

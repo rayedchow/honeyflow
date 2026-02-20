@@ -65,11 +65,13 @@ export default function ProjectDetailClient({
 
           {/* Contribution graph */}
           {hasGraph && (
-            <section className="border border-agentbase-border bg-agentbase-card p-6 mb-8">
-              <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-3">
+            <section className="border border-agentbase-border bg-agentbase-canvasBg mb-8">
+              <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted p-6 pb-0 mb-3">
                 Dependency Graph
               </p>
-              <ForceGraph graphData={project.graph_data} height={400} />
+              <div className="h-[calc(100vh-220px)] min-h-[400px]">
+                <ForceGraph graphData={project.graph_data} />
+              </div>
             </section>
           )}
 
