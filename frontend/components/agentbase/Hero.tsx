@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import EthIcon from './EthIcon';
 
 type Phase = 'idle' | 'exit' | 'squish' | 'enter';
 
@@ -283,9 +284,10 @@ export default function Hero() {
                     <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
                         <Link
                             href="/sign-up"
-                            className="px-6 py-3 bg-black text-white font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-gray-800 transition-colors"
+                            className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-black text-white font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-gray-800 transition-colors"
                         >
-                            Start Free →
+                            <EthIcon size={12} />
+                            Donate
                         </Link>
                         <Link
                             href="/docs"

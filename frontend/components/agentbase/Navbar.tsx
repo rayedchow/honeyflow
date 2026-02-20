@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import DarkModeToggle from './DarkModeToggle';
+import EthIcon from './EthIcon';
 
 export default function Navbar() {
   return (
@@ -30,9 +31,10 @@ export default function Navbar() {
             <DarkModeToggle />
             <Link
               href="/sign-up"
-              className="px-6 py-2.5 bg-black text-white font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-gray-800 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-black text-white font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-gray-800 transition-colors"
             >
-              Sign Up →
+              <EthIcon size={12} />
+              Donate
             </Link>
           </div>
         </div>
