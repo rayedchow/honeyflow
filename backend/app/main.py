@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import check_connection, close_engine
-from app.routes import citation_graph, contributions, graph, package_graph, projects, stream
+from app.routes import citation_graph, contributions, graph, package_graph, projects, stream, vault
+from app.services.vault_db import init_db
 
 
 def _setup_logging() -> None:
@@ -24,6 +25,8 @@ async def lifespan(app: FastAPI):
     log.info("Checking database connection...")
     await check_connection()
     log.info("Database connection OK.")
+    await init_db()
+    log.info("Vault SQLite ready.")
     yield
     log.info("Disposing database engine...")
     await close_engine()
@@ -56,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(package_graph.router)
     app.include_router(projects.router)
     app.include_router(stream.router)
+    app.include_router(vault.router)
 
     @app.get("/health")
     async def health_check():

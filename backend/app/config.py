@@ -29,13 +29,17 @@ class Settings(BaseSettings):
     github_token: Optional[str] = None
     github_api_base: str = "https://api.github.com"
 
+    privy_app_id: str = ""
+    privy_app_secret: str = ""
+    eth_chain: str = "sepolia"
+
     # 0G inference API (Next.js API route)
     inference_api_url: str = "http://localhost:3000/api/inference"
 
     graph: GraphDefaults = GraphDefaults()
     citation: CitationDefaults = CitationDefaults()
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()
