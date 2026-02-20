@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import SubmitClient from "./SubmitClient";
+import DonateClient from "./DonateClient";
 
 export const metadata: Metadata = {
   title: "Donate — HoneyFlow",
@@ -8,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function DonatePage() {
-  return <SubmitClient />;
+  return (
+    <main className="flex-col flex w-full flex-1">
+      <DonateClient />
+    </main>
+  );
 }

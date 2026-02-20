@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
+import LayoutShell from "@/components/agentbase/LayoutShell";
 import "./globals.css";
 
 const inter = Inter({
@@ -21,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${GeistMono.variable}`}>
       <body className="bg-agentbase-bg text-agentbase-text antialiased font-sans">
-        {children}
+        <LayoutShell>{children}</LayoutShell>
       </body>
     </html>
   );

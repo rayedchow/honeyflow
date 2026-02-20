@@ -224,7 +224,7 @@ function FilterDropdown({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-agentbase-glassInputBg backdrop-blur-sm border border-agentbase-borderSubtle rounded-xl px-4 pr-9 py-2.5 text-[13px] text-agentbase-muted outline-none cursor-pointer hover:bg-agentbase-glassInputHover hover:border-agentbase-borderSubtle transition-all"
+        className="appearance-none bg-agentbase-card border border-agentbase-border px-4 pr-9 py-2.5 text-[13px] text-agentbase-muted outline-none cursor-pointer hover:bg-agentbase-cardHover transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -257,10 +257,10 @@ function ProjectCard({ project }: { project: Project }) {
   return (
     <a
       href="#"
-      className="liquid-glass group p-6 flex flex-col gap-4"
+      className="group border border-agentbase-border bg-agentbase-card p-6 flex flex-col gap-4 hover:bg-agentbase-cardHover transition-colors"
     >
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-agentbase-glassIconBg border border-agentbase-glassIconBorder flex items-center justify-center text-agentbase-muted group-hover:text-agentbase-cyan transition-colors shrink-0">
+        <div className="w-10 h-10 border border-agentbase-border flex items-center justify-center text-agentbase-muted group-hover:text-agentbase-cyan transition-colors shrink-0">
           <Icon className="w-5 h-5" />
         </div>
         <div className="min-w-0">
@@ -277,8 +277,8 @@ function ProjectCard({ project }: { project: Project }) {
         {project.summary}
       </p>
 
-      <div className="flex items-center gap-3 pt-3 border-t border-agentbase-borderSubtle">
-        <span className="inline-flex px-2.5 py-1 rounded-full bg-agentbase-cyanGlow border border-agentbase-cyan/30 text-[11px] font-mono font-bold text-agentbase-accentText tracking-wide">
+      <div className="flex items-center gap-3 pt-3 border-t border-agentbase-border">
+        <span className="inline-flex px-2.5 py-1 bg-agentbase-badgeBg text-agentbase-badgeText text-[11px] font-mono font-bold tracking-wide">
           {project.raised} raised
         </span>
         <span className="text-[11px] text-agentbase-muted">
@@ -323,27 +323,7 @@ export default function ExploreClient() {
   const noResults = filteredTrending.length === 0 && filteredNew.length === 0;
 
   return (
-    <div className="px-8 py-12 relative">
-      {/* Gradient mesh for glass refraction */}
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div
-          className="absolute w-[500px] h-[500px] rounded-full opacity-40 blur-[120px]"
-          style={{ background: 'var(--ab-backdrop-accent1)', top: '-10%', left: '-10%' }}
-        />
-        <div
-          className="absolute w-[400px] h-[400px] rounded-full opacity-30 blur-[100px]"
-          style={{ background: 'var(--ab-backdrop-accent2)', top: '30%', right: '-5%' }}
-        />
-        <div
-          className="absolute w-[350px] h-[350px] rounded-full opacity-20 blur-[100px]"
-          style={{ background: 'var(--ab-backdrop-neutral)', bottom: '0%', left: '30%' }}
-        />
-        <div
-          className="absolute w-[300px] h-[300px] rounded-full opacity-25 blur-[80px]"
-          style={{ background: 'var(--ab-backdrop-accent2)', bottom: '20%', right: '20%' }}
-        />
-      </div>
-
+    <div className="px-8 py-12">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-agentbase-text mb-3">
@@ -357,7 +337,7 @@ export default function ExploreClient() {
       {/* Search + Dropdowns */}
       <div className="flex flex-wrap gap-3 mb-12 border-b border-agentbase-border pb-8">
         {/* Search */}
-        <div className="border border-agentbase-borderSubtle bg-agentbase-glassInputBg backdrop-blur-sm rounded-xl px-4 py-2.5 flex items-center gap-3 w-full sm:w-64">
+        <div className="border border-agentbase-border bg-agentbase-card px-4 py-2.5 flex items-center gap-3 w-full sm:w-64">
           <svg
             viewBox="0 0 24 24"
             width="15"
@@ -398,7 +378,7 @@ export default function ExploreClient() {
 
       {/* Trending */}
       {filteredTrending.length > 0 && (
-        <section className="mb-14 glass-backdrop">
+        <section className="mb-14">
           <div className="mb-5">
             <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
               Popular right now
@@ -407,7 +387,7 @@ export default function ExploreClient() {
               Trending
             </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTrending.map((project) => (
               <ProjectCard key={project.name} project={project} />
             ))}
@@ -417,7 +397,7 @@ export default function ExploreClient() {
 
       {/* New Projects */}
       {filteredNew.length > 0 && (
-        <section className="glass-backdrop">
+        <section>
           <div className="mb-5">
             <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
               Recently added
@@ -426,7 +406,7 @@ export default function ExploreClient() {
               New Projects
             </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredNew.map((project) => (
               <ProjectCard key={project.name} project={project} />
             ))}
@@ -437,7 +417,7 @@ export default function ExploreClient() {
       {/* Empty state */}
       {noResults && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-agentbase-glassInputBg backdrop-blur-sm border border-agentbase-borderSubtle flex items-center justify-center mb-4">
+          <div className="w-12 h-12 border border-agentbase-border flex items-center justify-center mb-4">
             <svg
               viewBox="0 0 24 24"
               width="20"
