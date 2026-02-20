@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Background from "@/components/Background";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
-  title: "SourceFund - Recursive Funding Protocol",
-  description:
-    "AI-powered attribution meets Ethereum-based crowdfunding. Fund projects and automatically distribute to every contributor.",
+  title: "HoneyFlow | The Hive Mind for AI Agents",
+  description: "HoneyFlow is the sweet spot for deploying AI agents. One API call, infinite pollination.",
 };
 
 export default function RootLayout({
@@ -15,17 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>
-        <div className="relative min-h-screen">
-          <Background />
-          <div className="relative z-10 min-h-screen flex flex-col">
-            <Navbar />
-            <main className="flex-1 max-w-[1200px] w-full mx-auto px-6">
-              {children}
-            </main>
-          </div>
-        </div>
+    <html lang="en" className={`${inter.variable} ${GeistMono.variable}`}>
+      <body className="bg-agentbase-bg text-agentbase-text antialiased font-sans">
+        {children}
       </body>
     </html>
   );

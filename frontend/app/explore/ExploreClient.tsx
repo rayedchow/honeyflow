@@ -231,7 +231,7 @@ function FilterDropdown({
           <option
             key={o.value}
             value={o.value}
-            className="bg-[#1b1140] text-white/80"
+            className="bg-[#403511] text-white/80"
           >
             {o.label}
           </option>
