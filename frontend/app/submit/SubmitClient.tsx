@@ -1,0 +1,602 @@
+"use client";
+
+import { useState, useRef, useCallback, useEffect } from "react";
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type Phase = "idle" | "uploading" | "parsing" | "tracing" | "attributing" | "complete";
+type InputMode = "url" | "pdf";
+
+interface GraphNode {
+  id: string;
+  label: string;
+  ring: 0 | 1 | 2;
+  x: number;
+  y: number;
+  parentId?: string;
+  pct?: string;
+}
+
+interface GraphEdge {
+  from: string;
+  to: string;
+  pct: string;
+}
+
+interface LogLine {
+  time: string;
+  text: string;
+}
+
+// ── Fake demo data ───────────────────────────────────────────────────────────
+
+const DEMO_NODES: GraphNode[] = [
+  { id: "source", label: "zkml-paper.pdf", ring: 0, x: 50, y: 50 },
+  { id: "dep-1", label: "LibSnark", ring: 1, x: 50, y: 18, parentId: "source", pct: "28%" },
+  { id: "dep-2", label: "Halo2", ring: 1, x: 82, y: 35, parentId: "source", pct: "24%" },
+  { id: "dep-3", label: "PyTorch", ring: 1, x: 82, y: 65, parentId: "source", pct: "22%" },
+  { id: "dep-4", label: "EZKL", ring: 1, x: 50, y: 82, parentId: "source", pct: "16%" },
+  { id: "dep-5", label: "Circom", ring: 1, x: 18, y: 50, parentId: "source", pct: "10%" },
+  { id: "con-1", label: "alice.eth", ring: 2, x: 38, y: 5, parentId: "dep-1" },
+  { id: "con-2", label: "bob.eth", ring: 2, x: 62, y: 5, parentId: "dep-1" },
+  { id: "con-3", label: "sean.eth", ring: 2, x: 95, y: 22, parentId: "dep-2" },
+  { id: "con-4", label: "vitalik.eth", ring: 2, x: 95, y: 50, parentId: "dep-3" },
+  { id: "con-5", label: "barry.eth", ring: 2, x: 95, y: 78, parentId: "dep-3" },
+  { id: "con-6", label: "carol.eth", ring: 2, x: 62, y: 95, parentId: "dep-4" },
+  { id: "con-7", label: "dave.eth", ring: 2, x: 38, y: 95, parentId: "dep-4" },
+  { id: "con-8", label: "emily.eth", ring: 2, x: 5, y: 38, parentId: "dep-5" },
+];
+
+const DEMO_EDGES: GraphEdge[] = [
+  { from: "source", to: "dep-1", pct: "28%" },
+  { from: "source", to: "dep-2", pct: "24%" },
+  { from: "source", to: "dep-3", pct: "22%" },
+  { from: "source", to: "dep-4", pct: "16%" },
+  { from: "source", to: "dep-5", pct: "10%" },
+  { from: "dep-1", to: "con-1", pct: "15%" },
+  { from: "dep-1", to: "con-2", pct: "13%" },
+  { from: "dep-2", to: "con-3", pct: "24%" },
+  { from: "dep-3", to: "con-4", pct: "12%" },
+  { from: "dep-3", to: "con-5", pct: "10%" },
+  { from: "dep-4", to: "con-6", pct: "9%" },
+  { from: "dep-4", to: "con-7", pct: "7%" },
+  { from: "dep-5", to: "con-8", pct: "10%" },
+];
+
+const DEMO_LOG: { delay: number; line: LogLine }[] = [
+  { delay: 0, line: { time: "0.0s", text: "Starting analysis..." } },
+  { delay: 800, line: { time: "0.4s", text: "Parsed source: zkml-paper.pdf" } },
+  { delay: 1600, line: { time: "1.2s", text: "Found 5 direct references" } },
+  { delay: 2400, line: { time: "1.8s", text: "Tracing: LibSnark → 2 contributors" } },
+  { delay: 3000, line: { time: "2.3s", text: "Tracing: Halo2 → 1 contributor" } },
+  { delay: 3500, line: { time: "2.8s", text: "Tracing: PyTorch → 2 contributors" } },
+  { delay: 4000, line: { time: "3.2s", text: "Tracing: EZKL → 2 contributors" } },
+  { delay: 4400, line: { time: "3.6s", text: "Tracing: Circom → 1 contributor" } },
+  { delay: 5200, line: { time: "4.4s", text: "Calculating attribution percentages..." } },
+  { delay: 6400, line: { time: "5.6s", text: "Attribution complete — 14 nodes mapped" } },
+];
+
+// Schedules for when each node/edge becomes visible (ms from start)
+const NODE_SCHEDULE: { id: string; at: number }[] = [
+  { id: "source", at: 600 },
+  { id: "dep-1", at: 1800 },
+  { id: "dep-2", at: 2200 },
+  { id: "dep-3", at: 2600 },
+  { id: "dep-4", at: 3000 },
+  { id: "dep-5", at: 3400 },
+  { id: "con-1", at: 3800 },
+  { id: "con-2", at: 4000 },
+  { id: "con-3", at: 4200 },
+  { id: "con-4", at: 4400 },
+  { id: "con-5", at: 4600 },
+  { id: "con-6", at: 4800 },
+  { id: "con-7", at: 5000 },
+  { id: "con-8", at: 5200 },
+];
+
+const EDGE_SCHEDULE: { from: string; to: string; at: number }[] = [
+  { from: "source", to: "dep-1", at: 1900 },
+  { from: "source", to: "dep-2", at: 2300 },
+  { from: "source", to: "dep-3", at: 2700 },
+  { from: "source", to: "dep-4", at: 3100 },
+  { from: "source", to: "dep-5", at: 3500 },
+  { from: "dep-1", to: "con-1", at: 3900 },
+  { from: "dep-1", to: "con-2", at: 4100 },
+  { from: "dep-2", to: "con-3", at: 4300 },
+  { from: "dep-3", to: "con-4", at: 4500 },
+  { from: "dep-3", to: "con-5", at: 4700 },
+  { from: "dep-4", to: "con-6", at: 4900 },
+  { from: "dep-4", to: "con-7", at: 5100 },
+  { from: "dep-5", to: "con-8", at: 5300 },
+];
+
+const PHASE_SCHEDULE: { phase: Phase; at: number }[] = [
+  { phase: "uploading", at: 0 },
+  { phase: "parsing", at: 400 },
+  { phase: "tracing", at: 1600 },
+  { phase: "attributing", at: 5000 },
+  { phase: "complete", at: 6400 },
+];
+
+const PHASE_LABELS: Record<Phase, string> = {
+  idle: "",
+  uploading: "Uploading...",
+  parsing: "Parsing source...",
+  tracing: "Tracing dependencies...",
+  attributing: "Calculating attributions...",
+  complete: "Analysis complete",
+};
+
+// ── Contribution Graph ───────────────────────────────────────────────────────
+
+function ContributionGraph({
+  visibleNodes,
+  visibleEdges,
+  phase,
+}: {
+  visibleNodes: Set<string>;
+  visibleEdges: Set<string>;
+  phase: Phase;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [lines, setLines] = useState<
+    { from: string; to: string; x1: number; y1: number; x2: number; y2: number; pct: string }[]
+  >([]);
+
+  const updateLines = useCallback(() => {
+    if (!containerRef.current) return;
+    const cRect = containerRef.current.getBoundingClientRect();
+
+    const getCenter = (id: string) => {
+      const el = document.getElementById("cg-" + id);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2 - cRect.left, y: r.top + r.height / 2 - cRect.top };
+    };
+
+    const newLines = DEMO_EDGES.map((e) => {
+      const p1 = getCenter(e.from);
+      const p2 = getCenter(e.to);
+      if (!p1 || !p2) return { from: e.from, to: e.to, x1: 0, y1: 0, x2: 0, y2: 0, pct: e.pct };
+      return { from: e.from, to: e.to, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, pct: e.pct };
+    });
+    setLines(newLines);
+  }, []);
+
+  useEffect(() => {
+    updateLines();
+    window.addEventListener("resize", updateLines);
+    return () => window.removeEventListener("resize", updateLines);
+  }, [updateLines, visibleNodes]);
+
+  const isEmpty = phase === "idle";
+
+  return (
+    <div
+      className="relative w-full backdrop-blur-md bg-white/[0.04] border border-white/[0.07] rounded-2xl overflow-hidden"
+      style={{ height: 520 }}
+    >
+      {isEmpty && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-2xl bg-white/[0.05] border border-white/[0.07] flex items-center justify-center mx-auto mb-4">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/20">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+            </div>
+            <p className="text-white/30 text-[14px]">
+              Submit a source to see the contribution graph
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!isEmpty && (
+        <div ref={containerRef} className="absolute inset-4">
+          {/* SVG edges */}
+          <svg ref={svgRef} className="absolute inset-0 w-full h-full pointer-events-none z-0">
+            <defs>
+              <filter id="edgeGlow">
+                <feGaussianBlur stdDeviation="1.5" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+            {lines.map((l) => {
+              const key = `${l.from}-${l.to}`;
+              const isVisible = visibleEdges.has(key);
+              return (
+                <g key={key}>
+                  <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+                  <line
+                    x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+                    stroke="rgba(255,255,255,0.45)"
+                    strokeWidth="1.5"
+                    filter="url(#edgeGlow)"
+                    strokeDasharray="500"
+                    strokeDashoffset={isVisible ? "0" : "500"}
+                    style={{ transition: "stroke-dashoffset 0.6s ease-out", opacity: isVisible ? 1 : 0 }}
+                  />
+                  {/* Percentage label at midpoint */}
+                  {isVisible && (
+                    <text
+                      x={(l.x1 + l.x2) / 2}
+                      y={(l.y1 + l.y2) / 2 - 6}
+                      textAnchor="middle"
+                      className="fill-white/40 text-[9px]"
+                      style={{ fontFamily: "monospace", transition: "opacity 0.4s", opacity: phase === "attributing" || phase === "complete" ? 1 : 0 }}
+                    >
+                      {l.pct}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* Nodes */}
+          {DEMO_NODES.map((node) => {
+            const isVisible = visibleNodes.has(node.id);
+            const isSource = node.ring === 0;
+            const isContributor = node.ring === 2;
+
+            const size = isSource ? "w-16 h-16" : isContributor ? "w-11 h-11" : "w-13 h-13";
+            const iconSize = isSource ? "w-6 h-6" : isContributor ? "w-3.5 h-3.5" : "w-4 h-4";
+
+            return (
+              <div
+                key={node.id}
+                id={"cg-" + node.id}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 ${size} rounded-xl flex items-center justify-center z-10`}
+                style={{
+                  left: `${node.x}%`,
+                  top: `${node.y}%`,
+                  opacity: isVisible ? 1 : 0,
+                  transform: `translate(-50%, -50%) scale(${isVisible ? 1 : 0.6})`,
+                  transition: "opacity 0.4s ease-out, transform 0.4s ease-out, box-shadow 0.4s, border-color 0.4s, background 0.4s",
+                  background: isVisible ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${isVisible ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)"}`,
+                  boxShadow: isVisible
+                    ? isSource
+                      ? "0 0 24px rgba(255,255,255,0.12), 0 0 48px rgba(255,255,255,0.04)"
+                      : "0 0 16px rgba(255,255,255,0.08)"
+                    : "none",
+                }}
+              >
+                {/* Label */}
+                <span
+                  className="absolute -top-7 px-2 py-0.5 rounded bg-white/[0.1] text-[9px] font-mono font-medium text-white/70 whitespace-nowrap"
+                  style={{
+                    opacity: isVisible ? 1 : 0,
+                    transform: `translateY(${isVisible ? 0 : 4}px)`,
+                    transition: "opacity 0.3s 0.2s, transform 0.3s 0.2s",
+                  }}
+                >
+                  {node.label}
+                </span>
+
+                {/* Icon */}
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`${iconSize} transition-colors duration-300`}
+                  style={{ stroke: isVisible ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.2)" }}
+                >
+                  {isSource ? (
+                    <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></>
+                  ) : isContributor ? (
+                    <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>
+                  ) : (
+                    <><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></>
+                  )}
+                </svg>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Phase label */}
+      {phase !== "idle" && phase !== "complete" && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.08]">
+          <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-pulse" />
+          <span className="text-[11px] font-medium text-white/55">{PHASE_LABELS[phase]}</span>
+        </div>
+      )}
+
+      {phase === "complete" && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.08] border border-white/[0.1]">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/60">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <span className="text-[11px] font-medium text-white/65">Analysis complete</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Processing Log ───────────────────────────────────────────────────────────
+
+function ProcessingLog({ lines }: { lines: LogLine[] }) {
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [lines.length]);
+
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="backdrop-blur-md bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 max-h-48 overflow-y-auto">
+      <div className="space-y-1">
+        {lines.map((l, i) => (
+          <div
+            key={i}
+            className="flex gap-3 text-[11px] font-mono leading-relaxed"
+            style={{
+              animation: "fadeInLine 0.3s ease-out",
+            }}
+          >
+            <span className="text-white/25 flex-shrink-0 w-10 text-right">[{l.time}]</span>
+            <span className="text-white/55">{l.text}</span>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+    </div>
+  );
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+
+export default function SubmitClient() {
+  const [inputMode, setInputMode] = useState<InputMode>("url");
+  const [url, setUrl] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [visibleNodes, setVisibleNodes] = useState<Set<string>>(new Set());
+  const [visibleEdges, setVisibleEdges] = useState<Set<string>>(new Set());
+  const [logLines, setLogLines] = useState<LogLine[]>([]);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const canSubmit =
+    phase === "idle" && ((inputMode === "url" && url.trim().length > 0) || (inputMode === "pdf" && fileName.length > 0));
+
+  const clearTimers = useCallback(() => {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+  }, []);
+
+  const handleAnalyze = useCallback(() => {
+    if (!canSubmit) return;
+    clearTimers();
+    setVisibleNodes(new Set());
+    setVisibleEdges(new Set());
+    setLogLines([]);
+
+    PHASE_SCHEDULE.forEach(({ phase: p, at }) => {
+      timersRef.current.push(setTimeout(() => setPhase(p), at));
+    });
+
+    NODE_SCHEDULE.forEach(({ id, at }) => {
+      timersRef.current.push(
+        setTimeout(() => setVisibleNodes((prev) => new Set(prev).add(id)), at)
+      );
+    });
+
+    EDGE_SCHEDULE.forEach(({ from, to, at }) => {
+      timersRef.current.push(
+        setTimeout(() => setVisibleEdges((prev) => new Set(prev).add(`${from}-${to}`)), at)
+      );
+    });
+
+    DEMO_LOG.forEach(({ delay, line }) => {
+      timersRef.current.push(
+        setTimeout(() => setLogLines((prev) => [...prev, line]), delay)
+      );
+    });
+  }, [canSubmit, clearTimers]);
+
+  const handleReset = useCallback(() => {
+    clearTimers();
+    setPhase("idle");
+    setVisibleNodes(new Set());
+    setVisibleEdges(new Set());
+    setLogLines([]);
+    setUrl("");
+    setFileName("");
+  }, [clearTimers]);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      if (phase !== "idle") return;
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === "application/pdf") {
+        setFileName(file.name);
+        setInputMode("pdf");
+      }
+    },
+    [phase]
+  );
+
+  const handleFileInput = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        setFileName(file.name);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    return clearTimers;
+  }, [clearTimers]);
+
+  const isProcessing = phase !== "idle" && phase !== "complete";
+
+  return (
+    <div className="pt-10 pb-20">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-semibold tracking-tight text-white mb-2">
+          Submit
+        </h1>
+        <p className="text-[15px] text-white/55">
+          Upload a source to trace contributions and map the attribution graph
+        </p>
+      </div>
+
+      {/* Upload area */}
+      <div className="backdrop-blur-md bg-white/[0.04] border border-white/[0.07] rounded-2xl p-6 mb-6">
+        {/* Mode toggle */}
+        <div className="flex items-center gap-1 p-1 bg-white/[0.03] border border-white/[0.06] rounded-xl w-fit mb-5">
+          <button
+            onClick={() => phase === "idle" && setInputMode("url")}
+            className={`px-3.5 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
+              inputMode === "url"
+                ? "bg-white/[0.1] text-white border border-white/[0.12]"
+                : "text-white/40 hover:text-white/60"
+            }`}
+          >
+            GitHub URL
+          </button>
+          <button
+            onClick={() => phase === "idle" && setInputMode("pdf")}
+            className={`px-3.5 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
+              inputMode === "pdf"
+                ? "bg-white/[0.1] text-white border border-white/[0.12]"
+                : "text-white/40 hover:text-white/60"
+            }`}
+          >
+            Research Paper
+          </button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          {inputMode === "url" ? (
+            <div className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 flex items-center gap-3">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/25 flex-shrink-0">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              <input
+                type="text"
+                placeholder="https://github.com/org/repo"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                disabled={phase !== "idle"}
+                className="bg-transparent outline-none text-sm text-white placeholder-white/25 w-full disabled:opacity-50"
+              />
+            </div>
+          ) : (
+            <div
+              onDrop={handleDrop}
+              onDragOver={(e) => e.preventDefault()}
+              className="flex-1 border border-dashed border-white/[0.1] rounded-xl px-6 py-5 flex items-center justify-center gap-3 cursor-pointer hover:border-white/[0.18] hover:bg-white/[0.02] transition-all"
+              onClick={() => phase === "idle" && document.getElementById("pdf-input")?.click()}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/30">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              {fileName ? (
+                <span className="text-sm text-white/65">{fileName}</span>
+              ) : (
+                <span className="text-sm text-white/30">
+                  Drop a PDF or click to browse
+                </span>
+              )}
+              <input
+                id="pdf-input"
+                type="file"
+                accept=".pdf"
+                onChange={handleFileInput}
+                disabled={phase !== "idle"}
+                className="hidden"
+              />
+            </div>
+          )}
+
+          {phase === "idle" ? (
+            <button
+              onClick={handleAnalyze}
+              disabled={!canSubmit}
+              className="px-6 py-3 rounded-xl text-sm font-medium bg-white text-[#1b1140] hover:bg-white/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+            >
+              Analyze
+            </button>
+          ) : (
+            <button
+              onClick={handleReset}
+              className="px-6 py-3 rounded-xl text-sm font-medium bg-white/[0.06] border border-white/[0.1] text-white/65 hover:bg-white/[0.1] transition-all flex-shrink-0"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Graph + Log side by side on large screens */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+        <ContributionGraph visibleNodes={visibleNodes} visibleEdges={visibleEdges} phase={phase} />
+
+        <div className="flex flex-col gap-4">
+          {/* Stats (only when complete) */}
+          {phase === "complete" && (
+            <div className="backdrop-blur-md bg-white/[0.04] border border-white/[0.07] rounded-2xl p-5 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-1">Dependencies</p>
+                <p className="text-2xl font-semibold text-white">5</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-1">Contributors</p>
+                <p className="text-2xl font-semibold text-white">8</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-1">Nodes Mapped</p>
+                <p className="text-2xl font-semibold text-white">14</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-1">Depth</p>
+                <p className="text-2xl font-semibold text-white">2</p>
+              </div>
+            </div>
+          )}
+
+          {/* Processing log */}
+          <ProcessingLog lines={logLines} />
+
+          {/* Placeholder when idle */}
+          {phase === "idle" && (
+            <div className="backdrop-blur-md bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 text-center">
+              <p className="text-[13px] text-white/30">
+                Processing log will appear here
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Inline keyframes */}
+      <style jsx>{`
+        @keyframes fadeInLine {
+          from {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+    </div>
+  );
+}

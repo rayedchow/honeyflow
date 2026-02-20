@@ -30,6 +30,12 @@ export default function Navbar() {
             >
               Projects
             </a>
+            <a
+              href="/submit"
+              className="hover:text-white/80 transition-colors"
+            >
+              Submit
+            </a>
             <span className="cursor-pointer hover:text-white/80 transition-colors">
               Docs
             </span>
