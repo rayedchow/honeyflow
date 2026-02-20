@@ -3,9 +3,9 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import DarkModeToggle from './DarkModeToggle';
-import EthIcon from './EthIcon';
-import WalletButton from './WalletButton';
+import DarkModeToggle from '@/components/ui/DarkModeToggle';
+import EthIcon from '@/components/ui/EthIcon';
+import WalletButton from '@/components/ui/WalletButton';
 
 export default function Navbar({ maxW = "64rem" }: { maxW?: string }) {
   return (

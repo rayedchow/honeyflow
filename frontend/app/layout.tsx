@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
-import LayoutShell from "@/components/agentbase/LayoutShell";
+import LayoutShell from "@/components/layout/LayoutShell";
 import "./globals.css";
 
 const inter = Inter({

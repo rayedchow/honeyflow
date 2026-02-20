@@ -1,8 +1,8 @@
-import Hero from "@/components/agentbase/Hero";
-import WhatWeDo from "@/components/agentbase/WhatWeDo";
-import HowItWorks from "@/components/agentbase/HowItWorks";
-import ProjectShowcase from "@/components/agentbase/ProjectShowcase";
-import Footer from "@/components/agentbase/Footer";
+import Hero from "@/components/landing/Hero";
+import WhatWeDo from "@/components/landing/WhatWeDo";
+import HowItWorks from "@/components/landing/HowItWorks";
+import ProjectShowcase from "@/components/landing/ProjectShowcase";
+import Footer from "@/components/layout/Footer";
 
 export default function Home() {
   return (

@@ -3,9 +3,9 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { BrowserProvider, parseEther } from "ethers";
-import { typeConfig } from "@/components/agentbase/TypeIcons";
-import EthIcon from "@/components/agentbase/EthIcon";
-import ForceGraph from "@/components/agentbase/ForceGraph";
+import { typeConfig } from "@/components/ui/TypeIcons";
+import EthIcon from "@/components/ui/EthIcon";
+import ForceGraph from "@/components/viz/ForceGraph";
 import { getVault, confirmDonate } from "@/lib/api";
 import { useWallet } from "@/hooks/useWallet";
 import type { Project } from "@/lib/types";
