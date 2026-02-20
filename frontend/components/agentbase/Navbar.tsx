@@ -24,13 +24,13 @@ export default function Navbar() {
 
           <div className="hidden md:flex items-center gap-8 text-[10px] font-mono tracking-widest text-[#888888] uppercase font-bold">
             <Link href="/explore" className="hover:text-black transition-colors">Explore</Link>
-            <Link href="/docs" className="hover:text-black transition-colors">Documentation</Link>
+            <Link href="/docs" className="hover:text-black transition-colors">Docs</Link>
           </div>
 
           <div className="flex items-center gap-3">
             <DarkModeToggle />
             <Link
-              href="/sign-up"
+              href="#"
               className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-black text-white font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-gray-800 transition-colors"
             >
               <EthIcon size={12} />
