@@ -196,25 +196,6 @@ export default function Testimonials() {
                         description="Staked jurors answer attribution questions that train the funding model."
                         colorIndex={2}
                     />
-
-                    <FeatureCard
-                        title="Stake-to-Verify"
-                        description="Good answers earn yield. Biased answers get slashed. Skin in the game."
-                        colorIndex={3}
-                    />
-
-                    <FeatureCard
-                        title="Dependency Mapping"
-                        description="Every library, package, and fork. Upstream work gets rewarded too."
-                        colorIndex={4}
-                    />
-
-                    <FeatureCard
-                        title="Claimless Payouts"
-                        description="No applications. No committees. Contributors claim directly to their wallet."
-                        colorIndex={5}
-                    />
-
                 </div>
             </div>
         </section>

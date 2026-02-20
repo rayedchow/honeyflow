@@ -224,21 +224,15 @@ function FilterDropdown({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none backdrop-blur-md bg-white/[0.04] border border-white/[0.07] rounded-xl pl-4 pr-9 py-2.5 text-[13px] text-white/65 outline-none cursor-pointer hover:bg-white/[0.06] hover:border-white/[0.1] transition-all"
-        style={{ colorScheme: "dark" }}
+        className="appearance-none bg-white border border-agentbase-border px-4 pr-9 py-2.5 text-[13px] text-agentbase-muted outline-none cursor-pointer hover:bg-gray-50 hover:border-agentbase-borderStrong transition-colors"
       >
         {options.map((o) => (
-          <option
-            key={o.value}
-            value={o.value}
-            className="bg-[#403511] text-white/80"
-          >
+          <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}
       </select>
-      {/* Chevron */}
-      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/30">
+      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-agentbase-muted">
         <svg
           viewBox="0 0 24 24"
           width="13"
@@ -263,32 +257,31 @@ function ProjectCard({ project }: { project: Project }) {
   return (
     <a
       href="#"
-      className="group backdrop-blur-md bg-white/[0.04] border border-white/[0.07] rounded-2xl p-6 flex flex-col gap-4 transition-all hover:bg-white/[0.06] hover:border-white/[0.1]"
+      className="group border border-agentbase-border bg-white p-6 flex flex-col gap-4 transition-colors hover:bg-gray-50"
     >
-      {/* Top row: icon + name/sector stacked beside it */}
       <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-xl bg-white/[0.07] border border-white/[0.08] flex items-center justify-center text-white/45 group-hover:text-white/65 transition-colors flex-shrink-0">
+        <div className="w-10 h-10 border border-agentbase-border flex items-center justify-center text-agentbase-muted group-hover:text-agentbase-cyan transition-colors shrink-0">
           <Icon className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-[16px] text-white font-medium tracking-tight leading-snug truncate">
+          <h3 className="text-base font-bold tracking-tight text-black truncate">
             {project.name}
           </h3>
-          <p className="text-[11px] text-white/35 uppercase tracking-widest mt-0.5">
+          <p className="text-[11px] text-agentbase-muted uppercase tracking-widest font-mono mt-0.5">
             {project.category}
           </p>
         </div>
       </div>
 
-      <p className="text-[13px] text-white/55 leading-relaxed line-clamp-2 -mt-1">
+      <p className="text-sm text-agentbase-muted leading-relaxed line-clamp-2">
         {project.summary}
       </p>
 
-      <div className="flex items-center gap-3 pt-2 border-t border-white/[0.05]">
-        <span className="inline-flex px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/[0.09] text-[11px] font-medium text-white/60">
+      <div className="flex items-center gap-3 pt-3 border-t border-agentbase-border">
+        <span className="inline-flex px-2.5 py-1 bg-agentbase-cyanGlow border border-agentbase-cyan/30 text-[11px] font-mono font-bold text-black tracking-wide">
           {project.raised} raised
         </span>
-        <span className="text-[11px] text-white/35">
+        <span className="text-[11px] text-agentbase-muted">
           {project.contributors} contributors
         </span>
       </div>
@@ -330,21 +323,21 @@ export default function ExploreClient() {
   const noResults = filteredTrending.length === 0 && filteredNew.length === 0;
 
   return (
-    <div className="pt-10 pb-20">
+    <div className="px-8 py-12">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-white mb-2">
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-black mb-3">
           Explore
         </h1>
-        <p className="text-[15px] text-white/55">
+        <p className="text-lg text-agentbase-muted">
           Discover and fund projects across the ecosystem
         </p>
       </div>
 
       {/* Search + Dropdowns */}
-      <div className="flex flex-wrap gap-3 mb-12">
+      <div className="flex flex-wrap gap-3 mb-12 border-b border-agentbase-border pb-8">
         {/* Search */}
-        <div className="backdrop-blur-md bg-white/[0.04] border border-white/[0.07] rounded-xl px-4 py-2.5 flex items-center gap-3 w-full sm:w-64">
+        <div className="border border-agentbase-border bg-white px-4 py-2.5 flex items-center gap-3 w-full sm:w-64">
           <svg
             viewBox="0 0 24 24"
             width="15"
@@ -354,7 +347,7 @@ export default function ExploreClient() {
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="text-white/30 flex-shrink-0"
+            className="text-agentbase-muted shrink-0"
           >
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -364,11 +357,10 @@ export default function ExploreClient() {
             placeholder="Search projects..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-transparent outline-none text-sm text-white placeholder-white/30 w-full"
+            className="bg-transparent outline-none text-sm text-black placeholder-[#999] w-full"
           />
         </div>
 
-        {/* Type dropdown */}
         <FilterDropdown
           label="Filter by type"
           value={typeFilter}
@@ -376,7 +368,6 @@ export default function ExploreClient() {
           options={typeOptions}
         />
 
-        {/* Sector dropdown */}
         <FilterDropdown
           label="Filter by sector"
           value={sectorFilter}
@@ -389,14 +380,14 @@ export default function ExploreClient() {
       {filteredTrending.length > 0 && (
         <section className="mb-14">
           <div className="mb-5">
-            <p className="text-[11px] font-medium uppercase tracking-widest text-white/35 mb-1.5">
+            <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
               Popular right now
             </p>
-            <h2 className="text-xl font-semibold tracking-tight text-white">
+            <h2 className="text-2xl font-bold tracking-tighter text-black">
               Trending
             </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredTrending.map((project) => (
               <ProjectCard key={project.name} project={project} />
             ))}
@@ -408,14 +399,14 @@ export default function ExploreClient() {
       {filteredNew.length > 0 && (
         <section>
           <div className="mb-5">
-            <p className="text-[11px] font-medium uppercase tracking-widest text-white/35 mb-1.5">
+            <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
               Recently added
             </p>
-            <h2 className="text-xl font-semibold tracking-tight text-white">
+            <h2 className="text-2xl font-bold tracking-tighter text-black">
               New Projects
             </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredNew.map((project) => (
               <ProjectCard key={project.name} project={project} />
             ))}
@@ -426,7 +417,7 @@ export default function ExploreClient() {
       {/* Empty state */}
       {noResults && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-white/[0.05] border border-white/[0.07] flex items-center justify-center mb-4">
+          <div className="w-12 h-12 border border-agentbase-border flex items-center justify-center mb-4">
             <svg
               viewBox="0 0 24 24"
               width="20"
@@ -436,16 +427,16 @@ export default function ExploreClient() {
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="text-white/30"
+              className="text-agentbase-muted"
             >
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </div>
-          <p className="text-white/55 text-[15px] font-medium mb-1">
+          <p className="text-black text-[15px] font-bold mb-1">
             No projects found
           </p>
-          <p className="text-white/30 text-[13px]">
+          <p className="text-agentbase-muted text-[13px]">
             Try a different filter or search term
           </p>
         </div>
