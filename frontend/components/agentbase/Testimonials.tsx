@@ -134,7 +134,7 @@ function PixelPattern({ colorIndex, hovered }: { colorIndex: number; hovered: bo
     }, [colorIndex]);
 
     return (
-        <div className="w-full h-24 overflow-hidden bg-[#F5F5F5]">
+        <div className="w-full h-24 overflow-hidden bg-agentbase-canvasBg">
             <canvas
                 ref={canvasRef}
                 style={{ width: '100%', height: '100%' }}
@@ -148,13 +148,13 @@ function FeatureCard({ title, description, colorIndex }: { title: string; descri
 
     return (
         <div
-            className="flex flex-col border border-agentbase-border bg-white shadow-sm overflow-hidden"
+            className="flex flex-col border border-agentbase-border bg-agentbase-card shadow-sm overflow-hidden"
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
             <PixelPattern colorIndex={colorIndex} hovered={hovered} />
             <div className="px-6 pt-5 pb-6 flex flex-col flex-1">
-                <h3 className="text-lg font-bold tracking-tight text-black mb-2">{title}</h3>
+                <h3 className="text-lg font-bold tracking-tight text-agentbase-text mb-2">{title}</h3>
                 <p className="text-sm text-agentbase-muted leading-relaxed">
                     {description}
                 </p>
@@ -165,14 +165,14 @@ function FeatureCard({ title, description, colorIndex }: { title: string; descri
 
 export default function Testimonials() {
     return (
-        <section className="w-full py-12 bg-white relative border-b border-agentbase-border">
+        <section className="w-full py-12 bg-agentbase-bg relative border-b border-agentbase-border">
             <div className="px-8">
 
                 <div className="mb-8 flex flex-col items-start">
-                    <div className="inline-block bg-black text-white text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full mb-3">
+                    <div className="inline-block bg-agentbase-badgeBg text-agentbase-badgeText text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full mb-3">
                         FEATURES
                     </div>
-                    <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-black mb-4">
+                    <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-agentbase-text mb-4">
                         What we do
                     </h2>
                 </div>

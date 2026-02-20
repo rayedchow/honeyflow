@@ -50,19 +50,19 @@ export default function ProjectShowcase() {
     };
 
     return (
-        <section className="w-full py-12 bg-white relative border-b border-agentbase-border">
+        <section className="w-full py-12 bg-agentbase-bg relative border-b border-agentbase-border">
             <div className="px-8 mb-8 flex items-end justify-between">
                 <div>
-                    <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-black mb-3">
+                    <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-agentbase-text mb-3">
                         Built with HoneyFlow
                     </h2>
-                    <p className="text-lg text-[#666666]">
+                    <p className="text-lg text-agentbase-muted">
                         See what the swarm is shipping in production
                     </p>
                 </div>
                 <button
                     onClick={scrollRight}
-                    className="shrink-0 w-12 h-12 rounded-full border border-agentbase-border bg-white flex items-center justify-center hover:bg-black hover:text-white hover:border-black transition-colors group"
+                    className="shrink-0 w-12 h-12 rounded-full border border-agentbase-border bg-agentbase-card flex items-center justify-center hover:bg-agentbase-pillBg hover:text-agentbase-pillText hover:border-agentbase-pillBg transition-colors group"
                     aria-label="Scroll right"
                 >
                     <svg
@@ -90,16 +90,16 @@ export default function ProjectShowcase() {
                     <Link
                         key={project.title}
                         href={project.href}
-                        className={`group flex flex-col shrink-0 w-[300px] border border-agentbase-border bg-white p-6${i === 0 ? ' ml-0' : ''}`}
+                        className={`group flex flex-col shrink-0 w-[300px] border border-agentbase-border bg-agentbase-card p-6${i === 0 ? ' ml-0' : ''}`}
                         style={{ scrollSnapAlign: 'start' }}
                     >
-                        <h3 className="text-lg font-bold tracking-tight text-yellow-400 mb-2">
+                        <h3 className="text-lg font-bold tracking-tight text-agentbase-yellow mb-2">
                             {project.title}
                         </h3>
                         <p className="text-sm text-agentbase-muted leading-relaxed mb-5">
                             {project.description}
                         </p>
-                        <span className="mt-auto text-sm font-semibold text-black flex items-center gap-1.5">
+                        <span className="mt-auto text-sm font-semibold text-agentbase-text flex items-center gap-1.5">
                             View Project
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="5" y1="12" x2="19" y2="12" />

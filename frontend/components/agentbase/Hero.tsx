@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import EthIcon from './EthIcon';
 
 type Phase = 'idle' | 'exit' | 'squish' | 'enter';
 
@@ -33,11 +34,11 @@ function FundCard({ phase }: { phase: Phase }) {
         <div className="px-8 py-5 flex items-center gap-6">
             <Inner phase={phase} i={0}>
                 <div className="flex items-center gap-6">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="#FACC15" stroke="none" className="shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" className="shrink-0 fill-agentbase-cyan" stroke="none">
                         <circle cx="12" cy="12" r="10" />
-                        <path d="M12 6v12M8 10l4-4 4 4M8 14l4 4 4-4" fill="none" stroke="#000" strokeWidth="1.5" />
+                        <path d="M12 6v12M8 10l4-4 4 4M8 14l4 4 4-4" fill="none" stroke="var(--ab-card-box-inner-text)" strokeWidth="1.5" />
                     </svg>
-                    <span className="font-mono text-white text-sm tracking-[0.2em] font-bold whitespace-nowrap">
+                    <span className="font-mono text-[var(--ab-card-box-text)] text-sm tracking-[0.2em] font-bold whitespace-nowrap">
                         FUND ANY PROJECT
                     </span>
                 </div>
@@ -51,21 +52,21 @@ function MapCard({ phase }: { phase: Phase }) {
         <div className="p-6 flex flex-col gap-6">
             <Inner phase={phase} i={0}>
                 <div>
-                    <h3 className="font-mono text-white text-xl font-bold tracking-wider mb-2">
+                    <h3 className="font-mono text-[var(--ab-card-box-text)] text-xl font-bold tracking-wider mb-2">
                         MAP THE GRAPH
                     </h3>
-                    <p className="font-mono text-white/60 text-sm tracking-wide">
+                    <p className="font-mono text-[var(--ab-card-box-muted)] text-sm tracking-wide">
                         Every commit, dependency, and upstream paper, fully traced
                     </p>
                 </div>
             </Inner>
             <Inner phase={phase} i={1}>
-                <div className="bg-white rounded-lg px-5 py-3 flex items-center gap-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                <div className="bg-[var(--ab-card-box-inner-bg)] rounded-lg px-5 py-3 flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-agentbase-muted">
                         <polyline points="16 18 22 12 16 6" />
                         <polyline points="8 6 2 12 8 18" />
                     </svg>
-                    <span className="font-mono text-black text-sm font-bold tracking-wide">
+                    <span className="font-mono text-[var(--ab-card-box-inner-text)] text-sm font-bold tracking-wide">
                         Contribution Graph
                     </span>
                 </div>
@@ -79,22 +80,22 @@ function FlowCard({ phase }: { phase: Phase }) {
         <div className="p-6 flex flex-col gap-4">
             <Inner phase={phase} i={0}>
                 <div className="self-start bg-agentbase-cyan rounded-lg px-4 py-2">
-                    <span className="font-mono text-black text-sm font-bold tracking-wider">
+                    <span className="font-mono text-agentbase-accentText text-sm font-bold tracking-wider">
                         THE HONEY FLOWS DOWN
                     </span>
                 </div>
             </Inner>
             <Inner phase={phase} i={1}>
                 <div className="bg-agentbase-cyan rounded-lg px-4 py-4">
-                    <p className="font-mono text-black text-sm leading-relaxed">
+                    <p className="font-mono text-agentbase-accentText text-sm leading-relaxed">
                         Funding propagates recursively through the full contribution graph. Every contributor gets their share, directly to their wallet.
                     </p>
                 </div>
             </Inner>
             <Inner phase={phase} i={2}>
                 <div className="flex items-center gap-2 pt-1">
-                    <span className="text-white text-lg leading-none">•</span>
-                    <span className="font-mono text-white text-sm font-bold tracking-wider">
+                    <span className="text-[var(--ab-card-box-text)] text-lg leading-none">•</span>
+                    <span className="font-mono text-[var(--ab-card-box-text)] text-sm font-bold tracking-wider">
                         NO MIDDLEMEN. ON-CHAIN.
                     </span>
                 </div>
@@ -149,9 +150,9 @@ function TypingWord() {
     }, [text, typing, wordIdx]);
 
     return (
-        <span className="text-yellow-400 relative inline-block">
+        <span className="text-agentbase-cursor relative inline-block">
             {text}
-            <span className="w-[3px] h-[0.8em] bg-yellow-400 inline-block align-middle animate-pulse ml-[1px]" />
+            <span className="w-[3px] h-[0.8em] bg-agentbase-cursor inline-block align-middle animate-pulse ml-[1px]" />
         </span>
     );
 }
@@ -243,14 +244,14 @@ function AnimatedCards() {
                 }}
             >
                 {CARDS.map((MeasureCard, i) => (
-                    <div key={i} className="bg-black rounded-2xl">
+                    <div key={i} className="hero-card-box rounded-2xl">
                         <MeasureCard phase="idle" />
                     </div>
                 ))}
             </div>
 
             <div
-                className="w-full bg-black rounded-2xl overflow-hidden"
+                className="w-full hero-card-box rounded-2xl overflow-hidden"
                 style={{
                     height: containerHeight ? `${containerHeight}px` : 'auto',
                     transition: transitioning
@@ -282,14 +283,15 @@ export default function Hero() {
                     </p>
                     <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
                         <Link
-                            href="/sign-up"
-                            className="px-6 py-3 bg-black text-white font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-gray-800 transition-colors"
+                            href="#"
+                            className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-agentbase-invertedBg text-agentbase-invertedText font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-agentbase-invertedHover transition-colors"
                         >
-                            Start Free →
+                            <EthIcon size={12} />
+                            Donate
                         </Link>
                         <Link
                             href="/docs"
-                            className="px-6 py-3 bg-transparent text-black border border-black border-2 font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-gray-50 transition-colors"
+                            className="px-6 py-3 bg-agentbase-btnSecBg text-agentbase-btnSecText border border-agentbase-btnSecBorder border-2 font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-agentbase-btnSecHover transition-colors"
                         >
                             View Docs →
                         </Link>

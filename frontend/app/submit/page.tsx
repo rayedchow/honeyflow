@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import SubmitClient from "./SubmitClient";
 
 export const metadata: Metadata = {
-  title: "Submit & Analyze - SourceFund",
+  title: "Donate — HoneyFlow",
   description:
-    "Upload a research paper or GitHub repo to trace every contribution and map the attribution graph.",
+    "Fund a project and watch the honey flow down through the full contribution graph.",
 };
 
-export default function SubmitPage() {
+export default function DonatePage() {
   return <SubmitClient />;
 }
