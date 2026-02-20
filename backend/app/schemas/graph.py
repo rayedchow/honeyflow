@@ -6,6 +6,7 @@ from pydantic import BaseModel, HttpUrl
 
 class NodeType(str, Enum):
     REPO = "REPO"
+    PACKAGE = "PACKAGE"
     BODY_OF_WORK = "BODY_OF_WORK"
     CONTRIBUTOR = "CONTRIBUTOR"
 

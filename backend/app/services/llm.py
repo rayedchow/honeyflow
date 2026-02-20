@@ -269,6 +269,59 @@ Respond with ONLY a JSON object mapping each dependency name to its score:
 
 
 # ------------------------------------------------------------------
+# Package analysis (for package tracing)
+# ------------------------------------------------------------------
+
+async def analyze_package(
+    description: str,
+    keywords: List[str],
+    dep_names: List[str],
+    readme: str = "",
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Ask Gemini to classify a package's purpose and tech stack."""
+    metadata = metadata or {}
+    languages = json.dumps(metadata.get("languages", {})) if metadata else "unknown"
+    readme_section = (
+        "\nREADME (first 4000 chars):\n{}".format(readme[:4000]) if readme else ""
+    )
+
+    prompt = """You are analyzing a software package from a package registry.
+
+Description: {description}
+Keywords: {keywords}
+Languages: {languages}
+Dependencies: {deps}
+{readme_section}
+
+Respond with ONLY a JSON object:
+{{
+  "purpose": "one-sentence description of what this package does",
+  "tech_stack": ["key", "technologies"],
+  "project_type": "library|application|framework|tool|other"
+}}""".format(
+        description=description or "(no description)",
+        keywords=json.dumps(keywords[:20]) if keywords else "[]",
+        languages=languages,
+        deps=json.dumps(dep_names[:30]) if dep_names else "[]",
+        readme_section=readme_section,
+    )
+
+    result = _parse_json_response(await _call_gemini(prompt, label="analyze_package"))
+    if isinstance(result, dict) and "purpose" in result:
+        logger.info("[LLM]  Package analysis: purpose=%s, type=%s",
+                    result.get("purpose", "")[:80], result.get("project_type"))
+        return result
+
+    logger.info("[LLM]  Using heuristic package analysis (no LLM response)")
+    return {
+        "purpose": description or "Unknown package",
+        "tech_stack": keywords[:5] if keywords else [],
+        "project_type": "library",
+    }
+
+
+# ------------------------------------------------------------------
 # Gemini with Google Search grounding (for citation influence)
 # ------------------------------------------------------------------
 
