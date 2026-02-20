@@ -113,6 +113,57 @@ async def get_wallet_transactions(
     return all_txns
 
 
+async def send_from_vault(
+    wallet_id: str,
+    to_address: str,
+    amount_eth: float,
+    chain: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Sign and broadcast an ETH transfer FROM a Privy server wallet.
+
+    Privy holds the key — no private key ever leaves their infrastructure.
+    Returns {"hash": "0x...", "caip2": "eip155:..."}.
+    """
+    chain = chain or settings.eth_chain
+    chain_ids = {"sepolia": 11155111, "mainnet": 1, "ethereum": 1}
+    chain_id = chain_ids.get(chain.lower(), 11155111)
+    caip2 = "eip155:{}".format(chain_id)
+
+    amount_wei_hex = hex(int(amount_eth * 10**18))
+
+    logger.info(
+        "[PRIVY] Sending %.6f ETH from wallet %s to %s on %s",
+        amount_eth,
+        wallet_id,
+        to_address,
+        caip2,
+    )
+
+    body = {
+        "method": "eth_sendTransaction",
+        "caip2": caip2,
+        "params": {
+            "transaction": {
+                "to": to_address,
+                "value": amount_wei_hex,
+            }
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.post(
+            "{}/wallets/{}/rpc".format(_BASE, wallet_id),
+            headers=_headers(),
+            json=body,
+        )
+        resp.raise_for_status()
+
+    data = resp.json()
+    tx_hash = data.get("data", {}).get("hash") or data.get("hash")
+    logger.info("[PRIVY] Sent tx hash=%s", tx_hash)
+    return {"hash": tx_hash, "caip2": caip2}
+
+
 async def find_donation(
     wallet_id: str,
     donator_address: str,

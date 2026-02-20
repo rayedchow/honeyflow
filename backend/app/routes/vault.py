@@ -7,10 +7,12 @@ from fastapi import APIRouter, HTTPException
 from app.schemas.vault import (
     ConfirmDonateRequest,
     ConfirmDonateResponse,
+    DisburseRequest,
+    DisburseResponse,
     GetVaultRequest,
     GetVaultResponse,
 )
-from app.services.privy import create_ethereum_wallet, find_donation
+from app.services.privy import create_ethereum_wallet, find_donation, send_from_vault
 from app.services.vault_db import create_vault, get_vault
 
 logger = logging.getLogger(__name__)
@@ -92,3 +94,48 @@ async def confirm_donate_endpoint(body: ConfirmDonateRequest):
         )
 
     return ConfirmDonateResponse(confirmed=False)
+
+
+@router.post("/disburse", response_model=DisburseResponse)
+async def disburse_endpoint(body: DisburseRequest):
+    """Send ETH from a project's Privy vault wallet to any address.
+
+    Privy signs the transaction server-side — no private key is ever
+    exposed. The vault must hold enough ETH to cover the transfer + gas.
+    """
+    existing = await get_vault(body.project_id)
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail="No vault found for project '{}'".format(body.project_id),
+        )
+
+    wallet_id, vault_address = existing
+    logger.info(
+        "[VAULT] Disbursing %.6f ETH from project=%s vault=%s to=%s",
+        body.amount_eth,
+        body.project_id,
+        vault_address,
+        body.to_address,
+    )
+
+    try:
+        result = await send_from_vault(
+            wallet_id=wallet_id,
+            to_address=body.to_address,
+            amount_eth=body.amount_eth,
+        )
+    except Exception as exc:
+        logger.error("Disburse failed for %s: %s", body.project_id, exc)
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to send transaction: {}".format(str(exc)),
+        )
+
+    return DisburseResponse(
+        project_id=body.project_id,
+        to_address=body.to_address,
+        amount_eth=body.amount_eth,
+        transaction_hash=result["hash"],
+        caip2=result["caip2"],
+    )
