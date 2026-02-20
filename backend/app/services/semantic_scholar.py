@@ -161,7 +161,12 @@ async def fetch_paper_by_arxiv_id(arxiv_id: str) -> Optional[Dict[str, Any]]:
         async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
             resp = await client.get(
                 "{}/paper/{}".format(_BASE, paper_key),
-                params={"fields": "paperId,externalIds,title,authors,year,abstract,citationCount,influentialCitationCount"},
+                params={
+                    "fields": (
+                        "paperId,externalIds,title,authors,year,publicationDate,"
+                        "abstract,citationCount,influentialCitationCount,fieldsOfStudy"
+                    )
+                },
                 headers=_HEADERS,
             )
             if resp.status_code in (404, 429):

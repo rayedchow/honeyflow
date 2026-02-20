@@ -4,6 +4,7 @@ Uses the Gemini REST API directly via httpx. Falls back to heuristic
 values when no API key is configured.
 """
 
+import asyncio
 import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
@@ -15,6 +16,8 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = httpx.Timeout(60.0, connect=10.0)
+_MAX_RETRIES = 3
+_BACKOFF_BASE = 2.0
 
 
 async def _call_gemini(prompt: str, label: str = "gemini") -> Optional[str]:
@@ -39,6 +42,16 @@ async def _call_gemini(prompt: str, label: str = "gemini") -> Optional[str]:
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(url, params=params, json=body)
+
+            retries = 0
+            while resp.status_code == 429 and retries < _MAX_RETRIES:
+                wait = _BACKOFF_BASE * (2 ** retries)
+                logger.info("[LLM]  Rate limited (429), retrying %s in %.0fs (%d/%d)",
+                            label, wait, retries + 1, _MAX_RETRIES)
+                await asyncio.sleep(wait)
+                resp = await client.post(url, params=params, json=body)
+                retries += 1
+
             resp.raise_for_status()
 
         data = resp.json()
@@ -283,6 +296,16 @@ async def _call_gemini_with_search(prompt: str, label: str = "gemini_search") ->
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(url, params=params, json=body)
+
+            retries = 0
+            while resp.status_code == 429 and retries < _MAX_RETRIES:
+                wait = _BACKOFF_BASE * (2 ** retries)
+                logger.info("[LLM]  Rate limited (429), retrying %s in %.0fs (%d/%d)",
+                            label, wait, retries + 1, _MAX_RETRIES)
+                await asyncio.sleep(wait)
+                resp = await client.post(url, params=params, json=body)
+                retries += 1
+
             resp.raise_for_status()
 
         data = resp.json()
@@ -325,15 +348,22 @@ async def rank_citation_influence(
             ctx_text = " Contexts: " + " | ".join(
                 '"{}"'.format(s[:150]) for s in snippets
             )
+        usage_text = ""
+        if c.get("explicit_count", 0) or c.get("conceptual_count", 0):
+            usage_text = " Explicit mentions: {exp}. Conceptual mentions: {con}.".format(
+                exp=c.get("explicit_count", 0),
+                con=c.get("conceptual_count", 0),
+            )
         authors_str = ", ".join(c.get("authors", [])[:3]) or "unknown"
         citation_summaries.append(
             "- [{key}] \"{title}\" by {authors} ({year}). "
-            "Cited {freq} times.{ctx}".format(
+            "Cited {freq} times.{usage}{ctx}".format(
                 key=c.get("key", "?"),
                 title=c.get("title", "untitled")[:100],
                 authors=authors_str,
                 year=c.get("year", "?"),
                 freq=c.get("frequency", 0),
+                usage=usage_text,
                 ctx=ctx_text,
             )
         )
@@ -344,6 +374,9 @@ not just which papers are mentioned most often.
 
 A paper cited once as "We extend the architecture of [X]" is MORE influential than
 a utility paper cited 20 times as "we use the optimizer from [Y]".
+
+Use explicit and conceptual mention counts as evidence, but treat them as
+supporting signals rather than ground truth.
 
 Use Google Search to look up papers you are uncertain about to understand their real
 significance and relationship to this paper.
