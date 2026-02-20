@@ -2,12 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { BrowserProvider, parseEther } from "ethers";
 
 import EthIcon from "@/components/agentbase/EthIcon";
 import ForceGraph from "@/components/agentbase/ForceGraph";
-import { streamTrace } from "@/lib/api";
+import { streamTrace, getVault, confirmDonate } from "@/lib/api";
 import { useTraceStore } from "@/lib/trace-store";
+import { useWallet } from "@/hooks/useWallet";
 import type { GraphData } from "@/lib/types";
+
+type TxStatus = "idle" | "connecting" | "sending" | "confirming" | "done" | "error";
 
 function StreamingLog() {
   const lines = useTraceStore((state) => state.logLines);
@@ -153,6 +157,11 @@ export default function DonateClient() {
   const [maxChildren, setMaxChildren] = useState(10);
   const abortRef = useRef<AbortController | null>(null);
 
+  const { address: walletAddress, isConnecting: walletConnecting, connect: connectWallet } = useWallet();
+  const [txStatus, setTxStatus] = useState<TxStatus>("idle");
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [txError, setTxError] = useState<string | null>(null);
+
   const phase = useTraceStore((state) => state.phase);
   const graphData = useTraceStore((state) => state.graphData);
   const result = useTraceStore((state) => state.result);
@@ -206,7 +215,53 @@ export default function DonateClient() {
     reset();
     setUrl("");
     setAmount("");
+    setTxStatus("idle");
+    setTxHash(null);
+    setTxError(null);
   }, [reset]);
+
+  const handleDonate = useCallback(async () => {
+    if (!result || !canDonate) return;
+
+    setTxError(null);
+    setTxHash(null);
+
+    try {
+      let addr = walletAddress;
+      if (!addr) {
+        setTxStatus("connecting");
+        addr = await connectWallet();
+        if (!addr) {
+          setTxStatus("error");
+          setTxError("Wallet connection rejected");
+          return;
+        }
+      }
+
+      setTxStatus("sending");
+      const { wallet_address: vaultAddress } = await getVault(result.slug);
+
+      const provider = new BrowserProvider(window.ethereum!);
+      const signer = await provider.getSigner();
+      const tx = await signer.sendTransaction({
+        to: vaultAddress,
+        value: parseEther(amount),
+      });
+
+      setTxHash(tx.hash);
+      setTxStatus("confirming");
+
+      const confirmation = await confirmDonate(result.slug, addr, parseFloat(amount));
+      if (confirmation.confirmed) {
+        setTxStatus("done");
+      } else {
+        setTxStatus("done");
+      }
+    } catch (err: unknown) {
+      setTxStatus("error");
+      setTxError(err instanceof Error ? err.message : "Transaction failed");
+    }
+  }, [result, canDonate, walletAddress, connectWallet, amount]);
 
   useEffect(() => {
     return () => {
@@ -373,14 +428,42 @@ export default function DonateClient() {
                   ETH
                 </span>
               </div>
-              <button
-                disabled={!canDonate}
-                className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-agentbase-invertedBg text-agentbase-invertedText font-mono text-[10px] tracking-widest uppercase font-bold rounded-full hover:bg-agentbase-invertedHover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <EthIcon size={10} />
-                Donate {amount ? `${amount} ETH` : ""}
-              </button>
-              {canDonate && result && (
+              {txStatus === "done" && txHash ? (
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white font-mono text-[10px] tracking-widest uppercase font-bold rounded-full hover:bg-green-700 transition-colors"
+                >
+                  Donated! View tx &rarr;
+                </a>
+              ) : (
+                <button
+                  onClick={!walletAddress && txStatus === "idle" ? connectWallet : handleDonate}
+                  disabled={
+                    (txStatus === "idle" && walletAddress !== null && !canDonate) ||
+                    txStatus === "sending" ||
+                    txStatus === "confirming" ||
+                    txStatus === "connecting" ||
+                    walletConnecting
+                  }
+                  className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-agentbase-invertedBg text-agentbase-invertedText font-mono text-[10px] tracking-widest uppercase font-bold rounded-full hover:bg-agentbase-invertedHover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <EthIcon size={10} />
+                  {(() => {
+                    if (walletConnecting || txStatus === "connecting") return "Connecting…";
+                    if (txStatus === "sending") return "Confirm in MetaMask…";
+                    if (txStatus === "confirming") return "Verifying on-chain…";
+                    if (txStatus === "error") return "Failed — retry";
+                    if (!walletAddress) return "Connect Wallet";
+                    return `Donate ${amount || "0"} ETH`;
+                  })()}
+                </button>
+              )}
+              {txError && (
+                <p className="mt-2 text-[10px] text-red-400 text-center">{txError}</p>
+              )}
+              {canDonate && result && txStatus === "idle" && (
                 <p className="mt-2 text-[10px] text-agentbase-muted text-center">
                   Splits across {result.contributors} contributors
                 </p>

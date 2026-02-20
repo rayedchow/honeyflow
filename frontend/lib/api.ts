@@ -114,3 +114,35 @@ export function streamTrace(
 
   return controller;
 }
+
+/* ── Vault / Donate ─────────────────────────────────────── */
+
+export async function getVault(
+  projectId: string,
+): Promise<{ wallet_address: string }> {
+  const res = await fetch(`${API_BASE}/get_vault`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId }),
+  });
+  if (!res.ok) throw new Error(`Failed to get vault: ${res.status}`);
+  return res.json();
+}
+
+export async function confirmDonate(
+  projectId: string,
+  donatorWallet: string,
+  amountEth: number,
+): Promise<{ confirmed: boolean; transaction_hash: string | null }> {
+  const res = await fetch(`${API_BASE}/confirm_donate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      project_id: projectId,
+      donator_wallet: donatorWallet,
+      amount_eth: amountEth,
+    }),
+  });
+  if (!res.ok) throw new Error(`Failed to confirm donation: ${res.status}`);
+  return res.json();
+}

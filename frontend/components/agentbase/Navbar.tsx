@@ -1,8 +1,11 @@
+"use client";
+
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import DarkModeToggle from './DarkModeToggle';
 import EthIcon from './EthIcon';
+import WalletButton from './WalletButton';
 
 export default function Navbar({ maxW = "64rem" }: { maxW?: string }) {
   return (
@@ -39,6 +42,7 @@ export default function Navbar({ maxW = "64rem" }: { maxW?: string }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <WalletButton />
             <DarkModeToggle />
             <Link
               href="/donate"
