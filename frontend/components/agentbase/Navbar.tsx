@@ -42,8 +42,8 @@ export default function Navbar({ maxW = "64rem" }: { maxW?: string }) {
           </div>
 
           <div className="flex items-center gap-3">
-            <WalletButton />
             <DarkModeToggle />
+            <WalletButton />
             <Link
               href="/donate"
               className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-agentbase-invertedBg text-agentbase-invertedText font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-agentbase-invertedHover transition-colors"

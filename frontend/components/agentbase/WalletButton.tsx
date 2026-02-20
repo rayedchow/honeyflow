@@ -13,8 +13,8 @@ export default function WalletButton() {
   if (address) {
     return (
       <div className="relative group">
-        <button className="inline-flex items-center gap-2 px-4 py-2 bg-green-600/15 text-green-400 border border-green-500/30 font-mono text-xs tracking-wide rounded-full hover:bg-green-600/25 transition-colors">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+        <button className="inline-flex items-center gap-2 px-4 py-2 border border-agentbase-border bg-agentbase-card font-mono text-xs tracking-wide rounded-full hover:bg-agentbase-cardHover transition-colors text-agentbase-text">
+          <span className="w-1.5 h-1.5 rounded-full bg-agentbase-accent" />
           {truncateAddress(address)}
         </button>
         <button
