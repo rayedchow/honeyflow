@@ -224,7 +224,7 @@ function FilterDropdown({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-white border border-agentbase-border px-4 pr-9 py-2.5 text-[13px] text-agentbase-muted outline-none cursor-pointer hover:bg-gray-50 hover:border-agentbase-borderStrong transition-colors"
+        className="appearance-none bg-agentbase-glassInputBg backdrop-blur-sm border border-agentbase-borderSubtle rounded-xl px-4 pr-9 py-2.5 text-[13px] text-agentbase-muted outline-none cursor-pointer hover:bg-agentbase-glassInputHover hover:border-agentbase-borderSubtle transition-all"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -257,14 +257,14 @@ function ProjectCard({ project }: { project: Project }) {
   return (
     <a
       href="#"
-      className="group border border-agentbase-border bg-white p-6 flex flex-col gap-4 transition-colors hover:bg-gray-50"
+      className="liquid-glass group p-6 flex flex-col gap-4"
     >
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 border border-agentbase-border flex items-center justify-center text-agentbase-muted group-hover:text-agentbase-cyan transition-colors shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-agentbase-glassIconBg border border-agentbase-glassIconBorder flex items-center justify-center text-agentbase-muted group-hover:text-agentbase-cyan transition-colors shrink-0">
           <Icon className="w-5 h-5" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-base font-bold tracking-tight text-black truncate">
+          <h3 className="text-base font-bold tracking-tight text-agentbase-text truncate">
             {project.name}
           </h3>
           <p className="text-[11px] text-agentbase-muted uppercase tracking-widest font-mono mt-0.5">
@@ -277,8 +277,8 @@ function ProjectCard({ project }: { project: Project }) {
         {project.summary}
       </p>
 
-      <div className="flex items-center gap-3 pt-3 border-t border-agentbase-border">
-        <span className="inline-flex px-2.5 py-1 bg-agentbase-cyanGlow border border-agentbase-cyan/30 text-[11px] font-mono font-bold text-black tracking-wide">
+      <div className="flex items-center gap-3 pt-3 border-t border-agentbase-borderSubtle">
+        <span className="inline-flex px-2.5 py-1 rounded-full bg-agentbase-cyanGlow border border-agentbase-cyan/30 text-[11px] font-mono font-bold text-agentbase-accentText tracking-wide">
           {project.raised} raised
         </span>
         <span className="text-[11px] text-agentbase-muted">
@@ -323,10 +323,30 @@ export default function ExploreClient() {
   const noResults = filteredTrending.length === 0 && filteredNew.length === 0;
 
   return (
-    <div className="px-8 py-12">
+    <div className="px-8 py-12 relative">
+      {/* Gradient mesh for glass refraction */}
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div
+          className="absolute w-[500px] h-[500px] rounded-full opacity-40 blur-[120px]"
+          style={{ background: 'var(--ab-backdrop-accent1)', top: '-10%', left: '-10%' }}
+        />
+        <div
+          className="absolute w-[400px] h-[400px] rounded-full opacity-30 blur-[100px]"
+          style={{ background: 'var(--ab-backdrop-accent2)', top: '30%', right: '-5%' }}
+        />
+        <div
+          className="absolute w-[350px] h-[350px] rounded-full opacity-20 blur-[100px]"
+          style={{ background: 'var(--ab-backdrop-neutral)', bottom: '0%', left: '30%' }}
+        />
+        <div
+          className="absolute w-[300px] h-[300px] rounded-full opacity-25 blur-[80px]"
+          style={{ background: 'var(--ab-backdrop-accent2)', bottom: '20%', right: '20%' }}
+        />
+      </div>
+
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-black mb-3">
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-agentbase-text mb-3">
           Explore
         </h1>
         <p className="text-lg text-agentbase-muted">
@@ -337,7 +357,7 @@ export default function ExploreClient() {
       {/* Search + Dropdowns */}
       <div className="flex flex-wrap gap-3 mb-12 border-b border-agentbase-border pb-8">
         {/* Search */}
-        <div className="border border-agentbase-border bg-white px-4 py-2.5 flex items-center gap-3 w-full sm:w-64">
+        <div className="border border-agentbase-borderSubtle bg-agentbase-glassInputBg backdrop-blur-sm rounded-xl px-4 py-2.5 flex items-center gap-3 w-full sm:w-64">
           <svg
             viewBox="0 0 24 24"
             width="15"
@@ -357,7 +377,7 @@ export default function ExploreClient() {
             placeholder="Search projects..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-transparent outline-none text-sm text-black placeholder-[#999] w-full"
+            className="bg-transparent outline-none text-sm text-agentbase-text placeholder-agentbase-placeholder w-full"
           />
         </div>
 
@@ -378,12 +398,12 @@ export default function ExploreClient() {
 
       {/* Trending */}
       {filteredTrending.length > 0 && (
-        <section className="mb-14">
+        <section className="mb-14 glass-backdrop">
           <div className="mb-5">
             <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
               Popular right now
             </p>
-            <h2 className="text-2xl font-bold tracking-tighter text-black">
+            <h2 className="text-2xl font-bold tracking-tighter text-agentbase-text">
               Trending
             </h2>
           </div>
@@ -397,12 +417,12 @@ export default function ExploreClient() {
 
       {/* New Projects */}
       {filteredNew.length > 0 && (
-        <section>
+        <section className="glass-backdrop">
           <div className="mb-5">
             <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
               Recently added
             </p>
-            <h2 className="text-2xl font-bold tracking-tighter text-black">
+            <h2 className="text-2xl font-bold tracking-tighter text-agentbase-text">
               New Projects
             </h2>
           </div>
@@ -417,7 +437,7 @@ export default function ExploreClient() {
       {/* Empty state */}
       {noResults && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-12 h-12 border border-agentbase-border flex items-center justify-center mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-agentbase-glassInputBg backdrop-blur-sm border border-agentbase-borderSubtle flex items-center justify-center mb-4">
             <svg
               viewBox="0 0 24 24"
               width="20"
@@ -433,7 +453,7 @@ export default function ExploreClient() {
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </div>
-          <p className="text-black text-[15px] font-bold mb-1">
+          <p className="text-agentbase-text text-[15px] font-bold mb-1">
             No projects found
           </p>
           <p className="text-agentbase-muted text-[13px]">

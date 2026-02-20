@@ -62,7 +62,7 @@ export default function ProjectShowcase() {
                 </div>
                 <button
                     onClick={scrollRight}
-                    className="shrink-0 w-12 h-12 rounded-full border border-agentbase-border bg-agentbase-card flex items-center justify-center hover:bg-[var(--ab-pill-bg)] hover:text-[var(--ab-pill-text)] hover:border-[var(--ab-pill-bg)] transition-colors group"
+                    className="shrink-0 w-12 h-12 rounded-full border border-agentbase-border bg-agentbase-card flex items-center justify-center hover:bg-agentbase-pillBg hover:text-agentbase-pillText hover:border-agentbase-pillBg transition-colors group"
                     aria-label="Scroll right"
                 >
                     <svg
@@ -93,7 +93,7 @@ export default function ProjectShowcase() {
                         className={`group flex flex-col shrink-0 w-[300px] border border-agentbase-border bg-agentbase-card p-6${i === 0 ? ' ml-0' : ''}`}
                         style={{ scrollSnapAlign: 'start' }}
                     >
-                        <h3 className="text-lg font-bold tracking-tight text-yellow-400 mb-2">
+                        <h3 className="text-lg font-bold tracking-tight text-agentbase-yellow mb-2">
                             {project.title}
                         </h3>
                         <p className="text-sm text-agentbase-muted leading-relaxed mb-5">

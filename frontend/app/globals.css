@@ -10,10 +10,221 @@
   font-display: swap;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — Light Mode (default)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --background: #FFFFFF;
-  --foreground: #000000;
+  /* ── Core ──────────────────────────────────────────────────────────────────── */
+  --background:             #FFFFFF;
+  --foreground:             #000000;
+
+  /* ── Surfaces ──────────────────────────────────────────────────────────────── */
+  --ab-bg:                  #FFFFFF;
+  --ab-surface:             #FAFAFA;
+  --ab-card:                #FFFFFF;
+  --ab-card-hover:          #FAFAFA;
+  --ab-canvas-bg:           #F5F5F5;
+
+  /* ── Borders ───────────────────────────────────────────────────────────────── */
+  --ab-border:              #EAEAEA;
+  --ab-border-strong:       #D1D1D1;
+  --ab-border-subtle:       rgba(0, 0, 0, 0.06);
+
+  /* ── Text ──────────────────────────────────────────────────────────────────── */
+  --ab-text:                #000000;
+  --ab-text-secondary:      #666666;
+  --ab-text-tertiary:       #888888;
+  --ab-text-muted:          rgba(0, 0, 0, 0.4);
+  --ab-text-placeholder:    #999999;
+
+  /* ── Heading ───────────────────────────────────────────────────────────────── */
+  --ab-heading:             #000000;
+
+  /* ── Accent / Brand ────────────────────────────────────────────────────────── */
+  --ab-accent:              #FEC508;
+  --ab-accent-glow:         rgba(254, 197, 8, 0.15);
+  --ab-yellow:              #FEC508;
+  --ab-typing-cursor:       #facc15;
+  --ab-accent-text:         #000000;
+
+  /* ── Inverted (primary CTA buttons, banner) ────────────────────────────────── */
+  --ab-inverted-bg:         #000000;
+  --ab-inverted-text:       #FFFFFF;
+  --ab-inverted-hover:      #333333;
+
+  /* ── Secondary button ──────────────────────────────────────────────────────── */
+  --ab-btn-secondary-bg:    transparent;
+  --ab-btn-secondary-text:  #000000;
+  --ab-btn-secondary-border:#000000;
+  --ab-btn-secondary-hover: #FAFAFA;
+
+  /* ── Pill / Badge ──────────────────────────────────────────────────────────── */
+  --ab-pill-bg:             #000000;
+  --ab-pill-text:           #FFFFFF;
+  --ab-badge-bg:            #000000;
+  --ab-badge-text:          #FFFFFF;
+
+  /* ── Hero card box (animated cards) ────────────────────────────────────────── */
+  --ab-card-box-bg:         #000000;
+  --ab-card-box-text:       #FFFFFF;
+  --ab-card-box-muted:      rgba(255, 255, 255, 0.6);
+  --ab-card-box-inner-bg:   #FFFFFF;
+  --ab-card-box-inner-text: #000000;
+
+  /* ── Graph nodes (SubmitClient) ────────────────────────────────────────────── */
+  --ab-node-bg:             #FAFAFA;
+  --ab-node-bg-inactive:    #F5F5F5;
+  --ab-node-border:         #D1D1D1;
+  --ab-node-border-inactive:#EAEAEA;
+  --ab-node-stroke:         #000000;
+  --ab-node-stroke-inactive:#CCCCCC;
+  --ab-edge-line:           rgba(0, 0, 0, 0.04);
+  --ab-edge-line-active:    rgba(0, 0, 0, 0.35);
+
+  /* ── Grid background ──────────────────────────────────────────────────────── */
+  --ab-grid-line:           rgba(0, 0, 0, 0.03);
+
+  /* ── Glass effects ─────────────────────────────────────────────────────────── */
+  --ab-glass-bg:            rgba(255, 255, 255, 0.45);
+  --ab-glass-bg-hover:      rgba(255, 255, 255, 0.55);
+  --ab-glass-border:        rgba(255, 255, 255, 0.6);
+  --ab-glass-border-hover:  rgba(255, 255, 255, 0.75);
+  --ab-glass-inset:         rgba(255, 255, 255, 0.8);
+  --ab-glass-inset-hover:   rgba(255, 255, 255, 0.9);
+  --ab-glass-shadow:        rgba(0, 0, 0, 0.08);
+  --ab-glass-shadow-sm:     rgba(0, 0, 0, 0.04);
+  --ab-glass-shadow-hover:  rgba(0, 0, 0, 0.12);
+  --ab-glass-shadow-sm-hover: rgba(0, 0, 0, 0.06);
+  --ab-glass-highlight-start: rgba(255, 255, 255, 0.5);
+  --ab-glass-highlight-end: rgba(255, 255, 255, 0.15);
+  --ab-glass-highlight-inset: rgba(255, 255, 255, 0.7);
+  --ab-glass-shine:         rgba(255, 255, 255, 0.35);
+
+  /* ── Glass input / icon backgrounds ────────────────────────────────────────── */
+  --ab-glass-input-bg:      rgba(255, 255, 255, 0.5);
+  --ab-glass-input-bg-hover:rgba(255, 255, 255, 0.7);
+  --ab-glass-icon-bg:       rgba(255, 255, 255, 0.6);
+  --ab-glass-icon-border:   rgba(255, 255, 255, 0.8);
+
+  /* ── Glass backdrop mesh ───────────────────────────────────────────────────── */
+  --ab-backdrop-accent1:    rgba(254, 197, 8, 0.08);
+  --ab-backdrop-accent2:    rgba(254, 197, 8, 0.05);
+  --ab-backdrop-neutral:    rgba(200, 200, 200, 0.06);
+
+  /* ── Shadow ────────────────────────────────────────────────────────────────── */
+  --ab-shadow-sm:           0 1px 2px rgba(0, 0, 0, 0.05);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — Dark Mode
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.dark {
+  /* ── Core ──────────────────────────────────────────────────────────────────── */
+  --background:             #0A0A0A;
+  --foreground:             #EAEAEA;
+
+  /* ── Surfaces ──────────────────────────────────────────────────────────────── */
+  --ab-bg:                  #0A0A0A;
+  --ab-surface:             #111111;
+  --ab-card:                #111111;
+  --ab-card-hover:          #1A1A1A;
+  --ab-canvas-bg:           #1A1A1A;
+
+  /* ── Borders ───────────────────────────────────────────────────────────────── */
+  --ab-border:              #222222;
+  --ab-border-strong:       #333333;
+  --ab-border-subtle:       rgba(255, 255, 255, 0.08);
+
+  /* ── Text ──────────────────────────────────────────────────────────────────── */
+  --ab-text:                #EAEAEA;
+  --ab-text-secondary:      #999999;
+  --ab-text-tertiary:       #777777;
+  --ab-text-muted:          rgba(234, 234, 234, 0.4);
+  --ab-text-placeholder:    #666666;
+
+  /* ── Heading ───────────────────────────────────────────────────────────────── */
+  --ab-heading:             #EAEAEA;
+
+  /* ── Accent / Brand (unchanged in dark) ────────────────────────────────────── */
+  --ab-accent:              #FEC508;
+  --ab-accent-glow:         rgba(254, 197, 8, 0.15);
+  --ab-yellow:              #FEC508;
+  --ab-typing-cursor:       #facc15;
+  --ab-accent-text:         #000000;
+
+  /* ── Inverted (primary CTA buttons, banner) ────────────────────────────────── */
+  --ab-inverted-bg:         #EAEAEA;
+  --ab-inverted-text:       #0A0A0A;
+  --ab-inverted-hover:      #CCCCCC;
+
+  /* ── Secondary button ──────────────────────────────────────────────────────── */
+  --ab-btn-secondary-bg:    transparent;
+  --ab-btn-secondary-text:  #EAEAEA;
+  --ab-btn-secondary-border:#EAEAEA;
+  --ab-btn-secondary-hover: #1A1A1A;
+
+  /* ── Pill / Badge ──────────────────────────────────────────────────────────── */
+  --ab-pill-bg:             #FEC508;
+  --ab-pill-text:           #000000;
+  --ab-badge-bg:            #EAEAEA;
+  --ab-badge-text:          #0A0A0A;
+
+  /* ── Hero card box (animated cards) ────────────────────────────────────────── */
+  --ab-card-box-bg:         #EAEAEA;
+  --ab-card-box-text:       #000000;
+  --ab-card-box-muted:      rgba(0, 0, 0, 0.6);
+  --ab-card-box-inner-bg:   #000000;
+  --ab-card-box-inner-text: #EAEAEA;
+
+  /* ── Graph nodes (SubmitClient) ────────────────────────────────────────────── */
+  --ab-node-bg:             #1A1A1A;
+  --ab-node-bg-inactive:    #141414;
+  --ab-node-border:         #333333;
+  --ab-node-border-inactive:#222222;
+  --ab-node-stroke:         #EAEAEA;
+  --ab-node-stroke-inactive:#444444;
+  --ab-edge-line:           rgba(255, 255, 255, 0.04);
+  --ab-edge-line-active:    rgba(255, 255, 255, 0.35);
+
+  /* ── Grid background ──────────────────────────────────────────────────────── */
+  --ab-grid-line:           rgba(255, 255, 255, 0.04);
+
+  /* ── Glass effects ─────────────────────────────────────────────────────────── */
+  --ab-glass-bg:            rgba(255, 255, 255, 0.04);
+  --ab-glass-bg-hover:      rgba(255, 255, 255, 0.07);
+  --ab-glass-border:        rgba(255, 255, 255, 0.08);
+  --ab-glass-border-hover:  rgba(255, 255, 255, 0.12);
+  --ab-glass-inset:         rgba(255, 255, 255, 0.06);
+  --ab-glass-inset-hover:   rgba(255, 255, 255, 0.08);
+  --ab-glass-shadow:        rgba(0, 0, 0, 0.4);
+  --ab-glass-shadow-sm:     rgba(0, 0, 0, 0.2);
+  --ab-glass-shadow-hover:  rgba(0, 0, 0, 0.5);
+  --ab-glass-shadow-sm-hover: rgba(0, 0, 0, 0.3);
+  --ab-glass-highlight-start: rgba(255, 255, 255, 0.06);
+  --ab-glass-highlight-end: rgba(255, 255, 255, 0.03);
+  --ab-glass-highlight-inset: rgba(255, 255, 255, 0.08);
+  --ab-glass-shine:         rgba(255, 255, 255, 0.06);
+
+  /* ── Glass input / icon backgrounds ────────────────────────────────────────── */
+  --ab-glass-input-bg:      rgba(255, 255, 255, 0.04);
+  --ab-glass-input-bg-hover:rgba(255, 255, 255, 0.08);
+  --ab-glass-icon-bg:       rgba(255, 255, 255, 0.06);
+  --ab-glass-icon-border:   rgba(255, 255, 255, 0.1);
+
+  /* ── Glass backdrop mesh ───────────────────────────────────────────────────── */
+  --ab-backdrop-accent1:    rgba(254, 197, 8, 0.04);
+  --ab-backdrop-accent2:    rgba(254, 197, 8, 0.03);
+  --ab-backdrop-neutral:    rgba(100, 100, 100, 0.04);
+
+  /* ── Shadow ────────────────────────────────────────────────────────────────── */
+  --ab-shadow-sm:           0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   GLOBAL STYLES
+   ═══════════════════════════════════════════════════════════════════════════════ */
 
 * {
   -webkit-font-smoothing: antialiased;
@@ -36,172 +247,126 @@ h5,
 h6 {
   font-weight: 600;
   letter-spacing: -0.05em;
-  color: #000000;
+  color: var(--ab-heading);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════════════════════════════════════════════════ */
 
 .bg-grid {
   background-size: 32px 32px;
   background-image:
-    linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, var(--ab-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--ab-grid-line) 1px, transparent 1px);
 }
 
 .border-grid {
-  border-color: rgba(0, 0, 0, 0.05);
+  border-color: var(--ab-border-subtle);
 }
 
-/* Dark mode overrides */
-.dark {
-  --background: #0A0A0A;
-  --foreground: #EAEAEA;
-}
-
-.dark body {
-  background-color: #0A0A0A;
-  color: #EAEAEA;
-}
-
-.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
-  color: #EAEAEA;
-}
-
-.dark .bg-white,
-.dark .bg-agentbase-bg {
-  background-color: #0A0A0A !important;
-}
-
-.dark .bg-white\/90,
-.dark .bg-agentbase-bg\/90 {
-  background-color: rgba(10, 10, 10, 0.9) !important;
-}
-
-.dark .bg-agentbase-surface {
-  background-color: #111111 !important;
-}
-
-.dark .bg-black {
-  background-color: #EAEAEA !important;
-}
-
-.dark .bg-black .text-white,
-.dark .bg-black .text-white\/60 {
-  color: #0A0A0A !important;
-}
-
-.dark .text-black,
-.dark .text-agentbase-text {
-  color: #EAEAEA !important;
-}
-
-.dark .text-white {
-  color: #0A0A0A !important;
-}
-
-.dark .text-\[\#666666\],
-.dark .text-agentbase-muted {
-  color: #999999 !important;
-}
-
-.dark .text-\[\#888888\] {
-  color: #777777 !important;
-}
-
-.dark .text-black\/40,
-.dark .text-black\/60 {
-  color: rgba(234, 234, 234, 0.4) !important;
-}
-
-.dark .border-agentbase-border,
-.dark .border-b {
-  border-color: #222222 !important;
-}
-
-.dark .border-x {
-  border-color: #222222 !important;
-}
-
-.dark .border-black {
-  border-color: #EAEAEA !important;
-}
-
-.dark .bg-\[\#F5F5F5\],
-.dark .bg-\[\#F3F4F6\] {
-  background-color: #1A1A1A !important;
-}
-
-.dark .hover\:bg-gray-50:hover {
-  background-color: #1A1A1A !important;
-}
-
-.dark .hover\:bg-gray-800:hover {
-  background-color: #CCCCCC !important;
-}
-
-.dark .hover\:text-black:hover {
-  color: #EAEAEA !important;
-}
-
-.dark .hover\:bg-black:hover {
-  background-color: #EAEAEA !important;
-}
-
-.dark .hover\:text-white:hover {
-  color: #0A0A0A !important;
-}
-
-.dark .hover\:border-black:hover {
-  border-color: #EAEAEA !important;
-}
-
-.dark .shadow-sm {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
-}
-
-.dark .bg-grid {
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-}
-
-/* Hero animated card box */
 .hero-card-box {
-  background-color: #000000;
+  background-color: var(--ab-card-box-bg);
 }
-
-.dark .hero-card-box {
-  background-color: #EAEAEA !important;
-}
-
-.dark .hero-card-box .text-white {
-  color: #000000 !important;
-}
-
-.dark .hero-card-box .text-white\/60 {
-  color: rgba(0, 0, 0, 0.6) !important;
-}
-
-.dark .hero-card-box .bg-white {
-  background-color: #000000 !important;
-}
-
-.dark .hero-card-box .bg-white .text-black {
-  color: #EAEAEA !important;
-}
-
-.dark .hero-card-box .bg-agentbase-cyan {
-  background-color: #FEC508 !important;
-}
-
-/* Keep yellow untouched */
-.dark .text-yellow-400 { color: #facc15 !important; }
-.dark .bg-yellow-400 { background-color: #facc15 !important; }
-.dark .text-agentbase-yellow { color: #FEC508 !important; }
-.dark .text-agentbase-cyan { color: #FEC508 !important; }
-.dark .bg-agentbase-cyan { background-color: #FEC508 !important; }
 
 @keyframes bounceIn {
   from { transform: scale(0.3); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
+}
+
+/* ── Liquid Glass Card ─────────────────────────────────────────────────────── */
+
+.liquid-glass {
+  position: relative;
+  isolation: isolate;
+  background: var(--ab-glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--ab-glass-border);
+  border-radius: 20px;
+  box-shadow:
+    0 1px 0 0 var(--ab-glass-inset) inset,
+    0 8px 32px -8px var(--ab-glass-shadow),
+    0 2px 8px -2px var(--ab-glass-shadow-sm);
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Inner specular highlight */
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    var(--ab-glass-highlight-start) 0%,
+    rgba(255, 255, 255, 0.0) 40%,
+    rgba(255, 255, 255, 0.0) 60%,
+    var(--ab-glass-highlight-end) 100%
+  );
+  box-shadow: inset 0 0 24px -8px var(--ab-glass-highlight-inset);
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+/* Animated shine sweep on hover */
+.liquid-glass::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    var(--ab-glass-shine) 0%,
+    transparent 50%
+  );
+  opacity: 0;
+  transform: translateX(-30%) translateY(-10%);
+  transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.liquid-glass:hover {
+  background: var(--ab-glass-bg-hover);
+  border-color: var(--ab-glass-border-hover);
+  box-shadow:
+    0 1px 0 0 var(--ab-glass-inset-hover) inset,
+    0 12px 40px -8px var(--ab-glass-shadow-hover),
+    0 4px 12px -2px var(--ab-glass-shadow-sm-hover);
+  transform: translateY(-2px);
+}
+
+.liquid-glass:hover::after {
+  opacity: 1;
+  transform: translateX(10%) translateY(5%);
+}
+
+/* Card content sits above pseudo-elements */
+.liquid-glass > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Gradient mesh backdrop for glass cards to blur against */
+.glass-backdrop {
+  position: relative;
+}
+
+.glass-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: -60px;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 600px 400px at 15% 20%, var(--ab-backdrop-accent1), transparent),
+    radial-gradient(ellipse 500px 350px at 85% 30%, var(--ab-backdrop-accent2), transparent),
+    radial-gradient(ellipse 400px 400px at 50% 80%, var(--ab-backdrop-neutral), transparent);
+  pointer-events: none;
 }
 
 .scrollbar-hide {

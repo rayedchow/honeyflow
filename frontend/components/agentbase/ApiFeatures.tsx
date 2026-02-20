@@ -19,7 +19,7 @@ export default function ApiFeatures() {
                         <div className="pt-2">
                             <Link
                                 href="/docs"
-                                className="px-6 py-3 bg-[var(--ab-pill-bg)] text-[var(--ab-pill-text)] font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:opacity-80 transition-colors inline-block"
+                                className="px-6 py-3 bg-agentbase-pillBg text-agentbase-pillText font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:opacity-80 transition-colors inline-block"
                             >
                                 Read Docs →
                             </Link>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import EthIcon from "@/components/agentbase/EthIcon";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,6 @@ const DEMO_LOG: { delay: number; line: LogLine }[] = [
   { delay: 6400, line: { time: "5.6s", text: "Attribution complete — 14 nodes mapped" } },
 ];
 
-// Schedules for when each node/edge becomes visible (ms from start)
 const NODE_SCHEDULE: { id: string; at: number }[] = [
   { id: "source", at: 600 },
   { id: "dep-1", at: 1800 },
@@ -174,19 +174,19 @@ function ContributionGraph({
 
   return (
     <div
-      className="relative w-full backdrop-blur-md bg-white/[0.04] border border-white/[0.07] rounded-2xl overflow-hidden"
+      className="relative w-full border border-agentbase-border bg-agentbase-card overflow-hidden"
       style={{ height: 520 }}
     >
       {isEmpty && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center">
-            <div className="w-14 h-14 rounded-2xl bg-white/[0.05] border border-white/[0.07] flex items-center justify-center mx-auto mb-4">
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/20">
+            <div className="w-14 h-14 border border-agentbase-border flex items-center justify-center mx-auto mb-4">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-agentbase-muted">
                 <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
               </svg>
             </div>
-            <p className="text-white/30 text-[14px]">
+            <p className="text-agentbase-muted text-[14px]">
               Submit a source to see the contribution graph
             </p>
           </div>
@@ -208,23 +208,22 @@ function ContributionGraph({
               const isVisible = visibleEdges.has(key);
               return (
                 <g key={key}>
-                  <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+                  <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="var(--ab-edge-line)" strokeWidth="1" />
                   <line
                     x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
-                    stroke="rgba(255,255,255,0.45)"
+                    stroke="var(--ab-edge-line-active)"
                     strokeWidth="1.5"
                     filter="url(#edgeGlow)"
                     strokeDasharray="500"
                     strokeDashoffset={isVisible ? "0" : "500"}
                     style={{ transition: "stroke-dashoffset 0.6s ease-out", opacity: isVisible ? 1 : 0 }}
                   />
-                  {/* Percentage label at midpoint */}
                   {isVisible && (
                     <text
                       x={(l.x1 + l.x2) / 2}
                       y={(l.y1 + l.y2) / 2 - 6}
                       textAnchor="middle"
-                      className="fill-white/40 text-[9px]"
+                      className="fill-agentbase-muted text-[9px]"
                       style={{ fontFamily: "monospace", transition: "opacity 0.4s", opacity: phase === "attributing" || phase === "complete" ? 1 : 0 }}
                     >
                       {l.pct}
@@ -248,25 +247,25 @@ function ContributionGraph({
               <div
                 key={node.id}
                 id={"cg-" + node.id}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 ${size} rounded-xl flex items-center justify-center z-10`}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 ${size} flex items-center justify-center z-10`}
                 style={{
                   left: `${node.x}%`,
                   top: `${node.y}%`,
                   opacity: isVisible ? 1 : 0,
                   transform: `translate(-50%, -50%) scale(${isVisible ? 1 : 0.6})`,
                   transition: "opacity 0.4s ease-out, transform 0.4s ease-out, box-shadow 0.4s, border-color 0.4s, background 0.4s",
-                  background: isVisible ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${isVisible ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)"}`,
+                  background: isVisible ? "var(--ab-node-bg)" : "var(--ab-node-bg-inactive)",
+                  border: `1px solid ${isVisible ? "var(--ab-node-border)" : "var(--ab-node-border-inactive)"}`,
                   boxShadow: isVisible
                     ? isSource
-                      ? "0 0 24px rgba(255,255,255,0.12), 0 0 48px rgba(255,255,255,0.04)"
-                      : "0 0 16px rgba(255,255,255,0.08)"
+                      ? "0 0 24px var(--ab-accent-glow), 0 0 48px rgba(254,197,8,0.05)"
+                      : "0 0 12px var(--ab-glass-shadow-sm)"
                     : "none",
                 }}
               >
                 {/* Label */}
                 <span
-                  className="absolute -top-7 px-2 py-0.5 rounded bg-white/[0.1] text-[9px] font-mono font-medium text-white/70 whitespace-nowrap"
+                  className="absolute -top-7 px-2 py-0.5 bg-agentbase-canvasBg border border-agentbase-border text-[9px] font-mono font-bold text-agentbase-muted whitespace-nowrap tracking-wide"
                   style={{
                     opacity: isVisible ? 1 : 0,
                     transform: `translateY(${isVisible ? 0 : 4}px)`,
@@ -284,7 +283,7 @@ function ContributionGraph({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   className={`${iconSize} transition-colors duration-300`}
-                  style={{ stroke: isVisible ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.2)" }}
+                  style={{ stroke: isVisible ? "var(--ab-node-stroke)" : "var(--ab-node-stroke-inactive)" }}
                 >
                   {isSource ? (
                     <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></>
@@ -302,18 +301,18 @@ function ContributionGraph({
 
       {/* Phase label */}
       {phase !== "idle" && phase !== "complete" && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.08]">
-          <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-pulse" />
-          <span className="text-[11px] font-medium text-white/55">{PHASE_LABELS[phase]}</span>
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-agentbase-canvasBg border border-agentbase-border">
+          <span className="w-1.5 h-1.5 rounded-full bg-agentbase-cyan animate-pulse" />
+          <span className="text-[11px] font-mono font-bold tracking-wider uppercase text-agentbase-muted">{PHASE_LABELS[phase]}</span>
         </div>
       )}
 
       {phase === "complete" && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.08] border border-white/[0.1]">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/60">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-agentbase-cyanGlow border border-agentbase-cyan/30">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-agentbase-accentText">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
           </svg>
-          <span className="text-[11px] font-medium text-white/65">Analysis complete</span>
+          <span className="text-[11px] font-mono font-bold tracking-wider uppercase text-agentbase-accentText">Analysis complete</span>
         </div>
       )}
     </div>
@@ -332,18 +331,16 @@ function ProcessingLog({ lines }: { lines: LogLine[] }) {
   if (lines.length === 0) return null;
 
   return (
-    <div className="backdrop-blur-md bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 max-h-48 overflow-y-auto">
+    <div className="border border-agentbase-border bg-agentbase-card p-4 max-h-48 overflow-y-auto">
       <div className="space-y-1">
         {lines.map((l, i) => (
           <div
             key={i}
             className="flex gap-3 text-[11px] font-mono leading-relaxed"
-            style={{
-              animation: "fadeInLine 0.3s ease-out",
-            }}
+            style={{ animation: "fadeInLine 0.3s ease-out" }}
           >
-            <span className="text-white/25 flex-shrink-0 w-10 text-right">[{l.time}]</span>
-            <span className="text-white/55">{l.text}</span>
+            <span className="text-agentbase-muted flex-shrink-0 w-10 text-right">[{l.time}]</span>
+            <span className="text-agentbase-textMuted">{l.text}</span>
           </div>
         ))}
         <div ref={endRef} />
@@ -358,14 +355,17 @@ export default function SubmitClient() {
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [url, setUrl] = useState("");
   const [fileName, setFileName] = useState("");
+  const [amount, setAmount] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [visibleNodes, setVisibleNodes] = useState<Set<string>>(new Set());
   const [visibleEdges, setVisibleEdges] = useState<Set<string>>(new Set());
   const [logLines, setLogLines] = useState<LogLine[]>([]);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const canSubmit =
-    phase === "idle" && ((inputMode === "url" && url.trim().length > 0) || (inputMode === "pdf" && fileName.length > 0));
+  const hasSource =
+    (inputMode === "url" && url.trim().length > 0) || (inputMode === "pdf" && fileName.length > 0);
+  const canAnalyze = phase === "idle" && hasSource;
+  const canDonate = phase === "complete" && amount.trim().length > 0 && parseFloat(amount) > 0;
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -373,7 +373,7 @@ export default function SubmitClient() {
   }, []);
 
   const handleAnalyze = useCallback(() => {
-    if (!canSubmit) return;
+    if (!canAnalyze) return;
     clearTimers();
     setVisibleNodes(new Set());
     setVisibleEdges(new Set());
@@ -400,7 +400,7 @@ export default function SubmitClient() {
         setTimeout(() => setLogLines((prev) => [...prev, line]), delay)
       );
     });
-  }, [canSubmit, clearTimers]);
+  }, [canAnalyze, clearTimers]);
 
   const handleReset = useCallback(() => {
     clearTimers();
@@ -410,6 +410,7 @@ export default function SubmitClient() {
     setLogLines([]);
     setUrl("");
     setFileName("");
+    setAmount("");
   }, [clearTimers]);
 
   const handleDrop = useCallback(
@@ -442,37 +443,44 @@ export default function SubmitClient() {
   const isProcessing = phase !== "idle" && phase !== "complete";
 
   return (
-    <div className="pt-10 pb-20">
+    <div className="px-8 py-12">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-white mb-2">
-          Submit
+        <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
+          Fund open source
+        </p>
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-agentbase-text mb-3">
+          Donate
         </h1>
-        <p className="text-[15px] text-white/55">
-          Upload a source to trace contributions and map the attribution graph
+        <p className="text-lg text-agentbase-muted">
+          Trace every contribution, then push funding all the way down
         </p>
       </div>
 
-      {/* Upload area */}
-      <div className="backdrop-blur-md bg-white/[0.04] border border-white/[0.07] rounded-2xl p-6 mb-6">
+      {/* Source input */}
+      <div className="border border-agentbase-border bg-agentbase-card p-6 mb-6">
+        <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-4">
+          Step 1 — Choose a source
+        </p>
+
         {/* Mode toggle */}
-        <div className="flex items-center gap-1 p-1 bg-white/[0.03] border border-white/[0.06] rounded-xl w-fit mb-5">
+        <div className="flex items-center gap-0 border border-agentbase-border w-fit mb-5">
           <button
             onClick={() => phase === "idle" && setInputMode("url")}
-            className={`px-3.5 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
+            className={`px-4 py-2 text-[11px] font-mono font-bold uppercase tracking-widest transition-colors ${
               inputMode === "url"
-                ? "bg-white/[0.1] text-white border border-white/[0.12]"
-                : "text-white/40 hover:text-white/60"
+                ? "bg-agentbase-invertedBg text-agentbase-invertedText"
+                : "bg-agentbase-bg text-agentbase-muted hover:text-agentbase-text"
             }`}
           >
             GitHub URL
           </button>
           <button
             onClick={() => phase === "idle" && setInputMode("pdf")}
-            className={`px-3.5 py-1.5 rounded-lg text-[12px] font-medium transition-all ${
+            className={`px-4 py-2 text-[11px] font-mono font-bold uppercase tracking-widest transition-colors border-l border-agentbase-border ${
               inputMode === "pdf"
-                ? "bg-white/[0.1] text-white border border-white/[0.12]"
-                : "text-white/40 hover:text-white/60"
+                ? "bg-agentbase-invertedBg text-agentbase-invertedText"
+                : "bg-agentbase-bg text-agentbase-muted hover:text-agentbase-text"
             }`}
           >
             Research Paper
@@ -481,8 +489,8 @@ export default function SubmitClient() {
 
         <div className="flex flex-col sm:flex-row gap-3">
           {inputMode === "url" ? (
-            <div className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 flex items-center gap-3">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/25 flex-shrink-0">
+            <div className="flex-1 border border-agentbase-border bg-agentbase-card px-4 py-3 flex items-center gap-3">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-agentbase-muted flex-shrink-0">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
               </svg>
@@ -492,24 +500,24 @@ export default function SubmitClient() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 disabled={phase !== "idle"}
-                className="bg-transparent outline-none text-sm text-white placeholder-white/25 w-full disabled:opacity-50"
+                className="bg-transparent outline-none text-sm text-agentbase-text placeholder-agentbase-placeholder w-full disabled:opacity-50"
               />
             </div>
           ) : (
             <div
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
-              className="flex-1 border border-dashed border-white/[0.1] rounded-xl px-6 py-5 flex items-center justify-center gap-3 cursor-pointer hover:border-white/[0.18] hover:bg-white/[0.02] transition-all"
+              className="flex-1 border border-dashed border-agentbase-borderStrong px-6 py-5 flex items-center justify-center gap-3 cursor-pointer hover:border-agentbase-text hover:bg-agentbase-surface transition-colors"
               onClick={() => phase === "idle" && document.getElementById("pdf-input")?.click()}
             >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/30">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-agentbase-muted">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
               </svg>
               {fileName ? (
-                <span className="text-sm text-white/65">{fileName}</span>
+                <span className="text-sm text-agentbase-text font-medium">{fileName}</span>
               ) : (
-                <span className="text-sm text-white/30">
+                <span className="text-sm text-agentbase-muted">
                   Drop a PDF or click to browse
                 </span>
               )}
@@ -527,15 +535,15 @@ export default function SubmitClient() {
           {phase === "idle" ? (
             <button
               onClick={handleAnalyze}
-              disabled={!canSubmit}
-              className="px-6 py-3 rounded-xl text-sm font-medium bg-white text-[#1b1140] hover:bg-white/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+              disabled={!canAnalyze}
+              className="px-6 py-3 text-[11px] font-mono font-bold uppercase tracking-widest bg-agentbase-invertedBg text-agentbase-invertedText hover:bg-agentbase-invertedHover transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             >
-              Analyze
+              Trace Graph
             </button>
           ) : (
             <button
               onClick={handleReset}
-              className="px-6 py-3 rounded-xl text-sm font-medium bg-white/[0.06] border border-white/[0.1] text-white/65 hover:bg-white/[0.1] transition-all flex-shrink-0"
+              className="px-6 py-3 text-[11px] font-mono font-bold uppercase tracking-widest border border-agentbase-border text-agentbase-muted hover:text-agentbase-text hover:border-agentbase-text transition-colors flex-shrink-0"
             >
               Reset
             </button>
@@ -543,42 +551,90 @@ export default function SubmitClient() {
         </div>
       </div>
 
-      {/* Graph + Log side by side on large screens */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+      {/* Graph + sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-0">
         <ContributionGraph visibleNodes={visibleNodes} visibleEdges={visibleEdges} phase={phase} />
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col border border-agentbase-border lg:border-l-0">
           {/* Stats (only when complete) */}
           {phase === "complete" && (
-            <div className="backdrop-blur-md bg-white/[0.04] border border-white/[0.07] rounded-2xl p-5 grid grid-cols-2 gap-4">
+            <div className="p-5 grid grid-cols-2 gap-4 border-b border-agentbase-border">
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-1">Dependencies</p>
-                <p className="text-2xl font-semibold text-white">5</p>
+                <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1">Dependencies</p>
+                <p className="text-2xl font-bold tracking-tight text-agentbase-text">5</p>
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-1">Contributors</p>
-                <p className="text-2xl font-semibold text-white">8</p>
+                <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1">Contributors</p>
+                <p className="text-2xl font-bold tracking-tight text-agentbase-text">8</p>
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-1">Nodes Mapped</p>
-                <p className="text-2xl font-semibold text-white">14</p>
+                <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1">Nodes Mapped</p>
+                <p className="text-2xl font-bold tracking-tight text-agentbase-text">14</p>
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mb-1">Depth</p>
-                <p className="text-2xl font-semibold text-white">2</p>
+                <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1">Depth</p>
+                <p className="text-2xl font-bold tracking-tight text-agentbase-text">2</p>
               </div>
             </div>
           )}
 
+          {/* Donation amount (when graph is complete) */}
+          {phase === "complete" && (
+            <div className="p-5 border-b border-agentbase-border">
+              <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-3">
+                Step 2 — Set amount
+              </p>
+              <div className="flex items-center gap-3 border border-agentbase-border px-4 py-3">
+                <EthIcon size={14} />
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="bg-transparent outline-none text-lg font-bold text-agentbase-text placeholder-agentbase-placeholder w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted flex-shrink-0">ETH</span>
+              </div>
+              <button
+                disabled={!canDonate}
+                className="mt-4 w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-agentbase-invertedBg text-agentbase-invertedText font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-agentbase-invertedHover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <EthIcon size={12} />
+                Donate {amount ? `${amount} ETH` : ""}
+              </button>
+              {canDonate && (
+                <p className="mt-3 text-[11px] text-agentbase-muted text-center">
+                  Funds will split across {8} contributors automatically
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Processing log */}
-          <ProcessingLog lines={logLines} />
+          {logLines.length > 0 && (
+            <div className="flex-1">
+              <ProcessingLog lines={logLines} />
+            </div>
+          )}
 
           {/* Placeholder when idle */}
           {phase === "idle" && (
-            <div className="backdrop-blur-md bg-white/[0.03] border border-white/[0.06] rounded-xl p-5 text-center">
-              <p className="text-[13px] text-white/30">
-                Processing log will appear here
+            <div className="p-5 flex-1 flex items-center justify-center">
+              <p className="text-[13px] text-agentbase-muted text-center">
+                Trace a source to see the contribution graph and donate
               </p>
+            </div>
+          )}
+
+          {/* Processing indicator */}
+          {isProcessing && logLines.length === 0 && (
+            <div className="p-5 flex-1 flex items-center justify-center">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-agentbase-cyan animate-pulse" />
+                <p className="text-[13px] text-agentbase-muted">Processing...</p>
+              </div>
             </div>
           )}
         </div>
