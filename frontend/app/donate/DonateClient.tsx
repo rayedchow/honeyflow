@@ -58,6 +58,7 @@ function StreamingLog() {
               <span className="w-1.5 h-3.5 bg-agentbase-cyan/60 animate-pulse" />
             </div>
           )}
+          {phase === "complete" && <div className="h-2" />}
           <div ref={endRef} />
         </div>
       )}
@@ -152,11 +153,11 @@ function GraphCanvas() {
 
 export default function DonateClient() {
   const [url, setUrl] = useState("");
-  const [amount, setAmount] = useState("");
   const [depth, setDepth] = useState(3);
   const [maxChildren, setMaxChildren] = useState(10);
   const abortRef = useRef<AbortController | null>(null);
 
+  const [amount, setAmount] = useState("");
   const { address: walletAddress, isConnecting: walletConnecting, connect: connectWallet } = useWallet();
   const [txStatus, setTxStatus] = useState<TxStatus>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -399,7 +400,7 @@ export default function DonateClient() {
             </div>
 
             {result && (
-              <div className="px-5 pt-3 border-t border-agentbase-border">
+              <div className="px-5 py-5 border-t border-agentbase-border">
                 <Link
                   href={`/explore/${result.slug}`}
                   className="block w-full text-center px-4 py-2.5 text-[10px] font-mono font-bold uppercase tracking-widest border border-agentbase-border text-agentbase-muted hover:text-agentbase-text hover:border-agentbase-text transition-colors"

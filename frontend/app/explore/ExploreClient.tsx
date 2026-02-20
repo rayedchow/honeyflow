@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { fetchProjects } from "@/lib/api";
 import {
   trendingProjects,
@@ -10,6 +11,8 @@ import {
 } from "@/lib/projects";
 import { typeConfig } from "@/components/agentbase/TypeIcons";
 import type { Project } from "@/lib/types";
+
+const fetcher = () => fetchProjects().then((d) => d.projects);
 
 const allSectors = [
   "All Sectors",
@@ -125,12 +128,24 @@ function ProjectCard({ project }: { project: CardProject }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function ExploreClient() {
+export default function ExploreClient({
+  initialProjects = [],
+}: {
+  initialProjects?: Project[];
+}) {
   const [typeFilter, setTypeFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("All Sectors");
   const [search, setSearch] = useState("");
-  const [apiProjects, setApiProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const { data: apiProjects = [], isLoading } = useSWR("projects", fetcher, {
+    fallbackData: initialProjects,
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+    dedupingInterval: 30_000,
+    keepPreviousData: true,
+  });
+
+  const loading = isLoading && apiProjects.length === 0;
 
   const typeOptions = [
     { value: "all", label: "All Types" },
@@ -140,23 +155,6 @@ export default function ExploreClient() {
   ];
 
   const sectorOptions = allSectors.map((s) => ({ value: s, label: s }));
-
-  // Fetch API projects
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetchProjects()
-      .then((data) => {
-        if (!cancelled) setApiProjects(data.projects);
-      })
-      .catch(() => {
-        // API not available — that's OK, we still have static data
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, []);
 
   // Combine static (demo) projects with API projects
   const allStaticProjects = [...trendingProjects, ...newProjects];
@@ -233,7 +231,7 @@ export default function ExploreClient() {
       </div>
 
       {/* Traced Projects (from API) */}
-      {filteredApi.length > 0 && (
+      {(filteredApi.length > 0 || loading) && (
         <section className="mb-14">
           <div className="mb-5">
             <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
@@ -243,11 +241,21 @@ export default function ExploreClient() {
               Live Projects
             </h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredApi.map((project) => (
-              <ProjectCard key={project.slug} project={project} />
-            ))}
-          </div>
+          {loading && filteredApi.length === 0 ? (
+            <div className="flex items-center justify-center py-16 border border-agentbase-border bg-agentbase-card">
+              <svg className="animate-spin h-5 w-5 text-agentbase-muted mr-3" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm text-agentbase-muted font-mono">Loading live projects...</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredApi.map((project) => (
+                <ProjectCard key={project.slug} project={project} />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -268,13 +276,6 @@ export default function ExploreClient() {
             ))}
           </div>
         </section>
-      )}
-
-      {/* Loading state */}
-      {loading && filteredApi.length === 0 && (
-        <div className="flex justify-center py-8">
-          <span className="w-1.5 h-1.5 rounded-full bg-agentbase-cyan animate-pulse" />
-        </div>
       )}
 
       {/* Empty state */}
