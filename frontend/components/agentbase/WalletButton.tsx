@@ -2,18 +2,30 @@
 
 import React from "react";
 import { useWallet } from "@/hooks/useWallet";
+import { useWalletStore } from "@/lib/wallet-store";
 
 function truncateAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 export default function WalletButton() {
+  const hasHydrated = useWalletStore((s) => s._hasHydrated);
   const { address, isConnecting, error, connect, disconnect } = useWallet();
+
+  // Wait for Zustand to hydrate from localStorage before rendering
+  if (!hasHydrated) {
+    return (
+      <div className="inline-flex items-center gap-2 px-4 py-2 border border-agentbase-border font-mono text-xs tracking-widest uppercase font-bold rounded-full opacity-50">
+        <span className="w-1.5 h-1.5 rounded-full bg-agentbase-muted animate-pulse" />
+        Wallet
+      </div>
+    );
+  }
 
   if (address) {
     return (
       <div className="relative group">
-        <button className="inline-flex items-center gap-2 px-4 py-2 border border-2 border-agentbase-border bg-agentbase-card font-mono text-xs tracking-wide rounded-full hover:bg-agentbase-cardHover transition-colors text-agentbase-text">
+        <button className="inline-flex items-center gap-2 px-4 py-2 border border-agentbase-border bg-agentbase-card font-mono text-xs tracking-wide rounded-full hover:bg-agentbase-cardHover transition-colors text-agentbase-text">
           <span className="w-1.5 h-1.5 rounded-full bg-agentbase-accent" />
           {truncateAddress(address)}
         </button>
