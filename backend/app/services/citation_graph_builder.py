@@ -1,8 +1,8 @@
 """Recursive citation graph builder.
 
 Mirrors the structure of graph_builder.py: collects data (arXiv API, LaTeX
-source, Semantic Scholar), runs influence analysis (Gemini with web search
-grounding), and assembles a weighted citation attribution graph.
+source, Semantic Scholar), runs influence analysis (0G Compute Network),
+and assembles a weighted citation attribution graph.
 
 Graph structure (mirrors GitHub graph):
   PAPER (root)

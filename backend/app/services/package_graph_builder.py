@@ -168,17 +168,22 @@ class PackageGraphBuilder:
                 )
 
         prod_deps = [d for d in pkg_info.dependencies if not d.dev_only]
+        if not prod_deps and pkg_info.dependencies:
+            logger.info(
+                "[PKGGRAPH] No prod deps; using %d dev deps for analysis",
+                len(pkg_info.dependencies),
+            )
+            prod_deps = pkg_info.dependencies
         dep_names = [d.name for d in prod_deps]
         logger.info(
-            "[PKGGRAPH] Phase 1 done: %s@%s, %d deps (%d prod)",
+            "[PKGGRAPH] Phase 1 done: %s@%s, %d deps (%d analysable)",
             package_name,
             pkg_info.latest_version or "?",
             len(pkg_info.dependencies),
-            len(prod_deps),
+            len(dep_names),
         )
 
-        use_llm = bool(settings.gemini_api_key and dep_names)
-        if use_llm:
+        if True:
             logger.info(
                 "[PKGGRAPH] Phase 2: running LLM analysis for %s ...", package_name
             )
@@ -190,15 +195,19 @@ class PackageGraphBuilder:
                 metadata,
             )
 
-            split_task = llm.split_direct_vs_deps(
-                pkg_analysis, len(dep_names), 0
-            )
-            rank_task = llm.rank_dependency_importance(
-                pkg_analysis, dep_names, {}
-            )
-            (direct_frac, deps_frac), dep_importance = await asyncio.gather(
-                split_task, rank_task
-            )
+            if dep_names:
+                split_task = llm.split_direct_vs_deps(
+                    pkg_analysis, len(dep_names), 0
+                )
+                rank_task = llm.rank_dependency_importance(
+                    pkg_analysis, dep_names, {}
+                )
+                (direct_frac, deps_frac), dep_importance = await asyncio.gather(
+                    split_task, rank_task
+                )
+            else:
+                direct_frac, deps_frac = 1.0, 0.0
+                dep_importance = {}
         else:
             logger.info(
                 "[PKGGRAPH] Phase 2: heuristic analysis (LLM skipped) for %s",

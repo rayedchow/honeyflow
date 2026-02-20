@@ -24,13 +24,13 @@ class CitationDefaults(BaseModel):
 class Settings(BaseSettings):
     app_name: str = "Contribution Tracer"
     debug: bool = False
+    database_url: Optional[str] = None
 
     github_token: Optional[str] = None
     github_api_base: str = "https://api.github.com"
 
-    gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-2.0-flash"
-    gemini_api_base: str = "https://generativelanguage.googleapis.com/v1beta"
+    # 0G inference API (Next.js API route)
+    inference_api_url: str = "http://localhost:3000/api/inference"
 
     graph: GraphDefaults = GraphDefaults()
     citation: CitationDefaults = CitationDefaults()

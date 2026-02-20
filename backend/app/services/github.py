@@ -20,8 +20,6 @@ from app.schemas.contributions import Contributor
 logger = logging.getLogger(__name__)
 
 
-_GITHUB_REPO_PATTERN = re.compile(r"^/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$")
-
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 _TARBALL_TIMEOUT = httpx.Timeout(120.0, connect=10.0)
 
@@ -36,21 +34,28 @@ def _headers() -> Dict[str, str]:
 def parse_repo_owner_and_name(repo_url: str) -> Tuple[str, str]:
     """Extract owner and repo name from a GitHub URL.
 
-    Supports:
+    Supports (and normalizes to owner/repo):
         https://github.com/owner/repo
         https://github.com/owner/repo.git
         https://github.com/owner/repo/
+        https://github.com/owner/repo/tree/main
+        https://github.com/owner/repo/issues/123
     """
     parsed = urlparse(str(repo_url))
 
     if parsed.hostname not in ("github.com", "www.github.com"):
         raise ValueError("Not a GitHub URL: {}".format(repo_url))
 
-    match = _GITHUB_REPO_PATTERN.match(parsed.path)
-    if not match:
+    parts = [p for p in parsed.path.split("/") if p]
+    if len(parts) < 2:
         raise ValueError("Could not parse owner/repo from URL: {}".format(repo_url))
-
-    return match.group("owner"), match.group("repo")
+    owner = parts[0]
+    repo = parts[1]
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+    if not owner or not repo:
+        raise ValueError("Could not parse owner/repo from URL: {}".format(repo_url))
+    return owner, repo
 
 
 # ------------------------------------------------------------------

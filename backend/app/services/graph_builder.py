@@ -142,32 +142,45 @@ class GraphBuilder:
 
         source_file_count = self._count_source_files(source_dir)
         prod_deps = [d for d in deps if not d.dev_only]
+
+        # If no prod deps but dev deps exist (monorepos, compilers, etc.),
+        # treat dev deps as analysis candidates so the LLM still runs.
+        if not prod_deps and deps:
+            logger.info(
+                "[GRAPH] No prod deps found; using %d dev deps for analysis", len(deps)
+            )
+            prod_deps = deps
+
         dep_names = [d.name for d in prod_deps]
         logger.info(
-            "[GRAPH] Phase 1 done: ecosystem=%s, %d deps (%d prod), "
+            "[GRAPH] Phase 1 done: ecosystem=%s, %d deps (%d analysable), "
             "%d source files, %d import entries",
             ecosystem,
             len(deps),
-            len(prod_deps),
+            len(dep_names),
             source_file_count,
             len(usage_freq),
         )
 
-        if use_llm and dep_names:
+        if use_llm:
             logger.info(
                 "[GRAPH] Phase 2: running LLM analysis for %s/%s ...", owner, repo
             )
             repo_analysis = await llm.analyze_repo(readme, metadata, file_tree)
 
-            split_task = llm.split_direct_vs_deps(
-                repo_analysis, len(dep_names), source_file_count
-            )
-            rank_task = llm.rank_dependency_importance(
-                repo_analysis, dep_names, self._match_usage(deps, usage_freq, ecosystem)
-            )
-            (direct_frac, deps_frac), dep_importance = await asyncio.gather(
-                split_task, rank_task
-            )
+            if dep_names:
+                split_task = llm.split_direct_vs_deps(
+                    repo_analysis, len(dep_names), source_file_count
+                )
+                rank_task = llm.rank_dependency_importance(
+                    repo_analysis, dep_names, self._match_usage(deps, usage_freq, ecosystem)
+                )
+                (direct_frac, deps_frac), dep_importance = await asyncio.gather(
+                    split_task, rank_task
+                )
+            else:
+                direct_frac, deps_frac = 1.0, 0.0
+                dep_importance = {}
         else:
             logger.info(
                 "[GRAPH] Phase 2: heuristic analysis (LLM skipped) for %s/%s",
@@ -436,10 +449,19 @@ class GraphBuilder:
         if depth > 1:
             try:
                 dep_owner, dep_repo = parse_repo_owner_and_name(github_url)
+                target_id = "bow:{}/{}".format(dep_owner, dep_repo)
+                if self._would_create_cycle(parent_id, target_id):
+                    logger.info(
+                        "[GRAPH] Skipping edge %s -> %s (would create cycle)",
+                        parent_id,
+                        target_id,
+                    )
+                    return
+
                 self.edges.append(
                     Edge(
                         source=parent_id,
-                        target="bow:{}/{}".format(dep_owner, dep_repo),
+                        target=target_id,
                         weight=weight,
                         label="{}%".format(round(weight * 100, 1)),
                     )
@@ -501,6 +523,28 @@ class GraphBuilder:
             )
         )
         return dep_node_id
+
+    def _would_create_cycle(self, source_id: str, target_id: str) -> bool:
+        """Return True if adding source_id -> target_id would create a cycle."""
+        if source_id == target_id:
+            return True
+
+        # If target can already reach source, adding source -> target closes a cycle.
+        adjacency: Dict[str, List[str]] = {}
+        for e in self.edges:
+            adjacency.setdefault(e.source, []).append(e.target)
+
+        stack = [target_id]
+        seen = {target_id}
+        while stack:
+            node = stack.pop()
+            if node == source_id:
+                return True
+            for child in adjacency.get(node, []):
+                if child not in seen:
+                    seen.add(child)
+                    stack.append(child)
+        return False
 
     # ------------------------------------------------------------------
     # Post-processing: enforce CONTRIBUTOR-only leaves
@@ -629,10 +673,20 @@ class GraphBuilder:
             return {}
 
         attribution: Dict[str, float] = _dd(float)
-        stack: List[Tuple[str, float]] = [(root, 1.0)]
+        stack: List[Tuple[str, float, Set[str]]] = [(root, 1.0, {root})]
+        step_count = 0
+        max_steps = 1_000_000
 
         while stack:
-            node_id, cum_weight = stack.pop()
+            node_id, cum_weight, path_nodes = stack.pop()
+            step_count += 1
+            if step_count > max_steps:
+                logger.warning(
+                    "[GRAPH] Attribution traversal aborted after %d steps (possible cycle explosion)",
+                    max_steps,
+                )
+                break
+
             node = next((n for n in self.nodes if n.id == node_id), None)
             if not node:
                 continue
@@ -641,7 +695,16 @@ class GraphBuilder:
                 attribution[node.label] += cum_weight
             else:
                 for child_id, edge_weight in children.get(node_id, []):
-                    stack.append((child_id, cum_weight * edge_weight))
+                    if child_id in path_nodes:
+                        logger.warning(
+                            "[GRAPH] Cycle detected during attribution: %s -> %s (skipping edge)",
+                            node_id,
+                            child_id,
+                        )
+                        continue
+                    stack.append(
+                        (child_id, cum_weight * edge_weight, path_nodes | {child_id})
+                    )
 
         sorted_attr = dict(sorted(attribution.items(), key=lambda x: -x[1]))
         return {k: round(v, 6) for k, v in sorted_attr.items()}

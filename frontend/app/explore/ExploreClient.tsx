@@ -1,196 +1,15 @@
 "use client";
 
-import { useState } from "react";
-
-type ProjectType = "paper" | "repo" | "package";
-
-interface Project {
-  name: string;
-  category: string;
-  type: ProjectType;
-  summary: string;
-  raised: string;
-  contributors: number;
-}
-
-const trendingProjects: Project[] = [
-  {
-    name: "Zero-Knowledge ML",
-    category: "Research",
-    type: "paper",
-    summary:
-      "ZK proofs for machine learning model inference verification on Ethereum. Enables trustless AI predictions.",
-    raised: "$45,200",
-    contributors: 38,
-  },
-  {
-    name: "DePIN Mesh Network",
-    category: "Infrastructure",
-    type: "repo",
-    summary:
-      "Decentralized physical infrastructure for wireless mesh connectivity. Community-owned internet access.",
-    raised: "$67,100",
-    contributors: 124,
-  },
-  {
-    name: "Agent Framework",
-    category: "AI",
-    type: "repo",
-    summary:
-      "Open-source framework for building autonomous on-chain AI agents with verifiable decision-making.",
-    raised: "$52,300",
-    contributors: 67,
-  },
-  {
-    name: "Recursive STARK Verifier",
-    category: "Cryptography",
-    type: "paper",
-    summary:
-      "On-chain recursive proof verification enabling scalable rollup architectures with minimal gas costs.",
-    raised: "$34,500",
-    contributors: 21,
-  },
-  {
-    name: "Solidity Fuzzer",
-    category: "Security",
-    type: "package",
-    summary:
-      "Automated smart contract vulnerability detection and property-based fuzzing framework for EVM chains.",
-    raised: "$23,800",
-    contributors: 45,
-  },
-  {
-    name: "OpenGraph Protocol",
-    category: "Social",
-    type: "package",
-    summary:
-      "Open standard for decentralized social graph data, portable identity, and cross-platform interop.",
-    raised: "$19,200",
-    contributors: 53,
-  },
-];
-
-const newProjects: Project[] = [
-  {
-    name: "Cross-Chain Indexer",
-    category: "Infrastructure",
-    type: "package",
-    summary:
-      "Real-time multi-chain data indexing and unified query engine for dApp developers.",
-    raised: "$3,200",
-    contributors: 8,
-  },
-  {
-    name: "DAO Governance Kit",
-    category: "Governance",
-    type: "package",
-    summary:
-      "Modular governance primitives and voting mechanisms for DAOs. Plug-and-play proposal lifecycle.",
-    raised: "$1,800",
-    contributors: 12,
-  },
-  {
-    name: "FHE Analytics",
-    category: "Privacy",
-    type: "paper",
-    summary:
-      "Fully homomorphic encryption for private on-chain analytics. Query encrypted data without decrypting.",
-    raised: "$5,100",
-    contributors: 6,
-  },
-  {
-    name: "MEV Shield",
-    category: "Security",
-    type: "package",
-    summary:
-      "User-facing MEV protection middleware. Private transaction relay with fair ordering guarantees.",
-    raised: "$2,400",
-    contributors: 15,
-  },
-  {
-    name: "Self-Sovereign ID",
-    category: "Identity",
-    type: "repo",
-    summary:
-      "Decentralized identity management with verifiable credentials and selective disclosure proofs.",
-    raised: "$4,700",
-    contributors: 19,
-  },
-  {
-    name: "Audit AI",
-    category: "Security",
-    type: "repo",
-    summary:
-      "AI-powered smart contract auditing that detects vulnerabilities and suggests fixes automatically.",
-    raised: "$890",
-    contributors: 4,
-  },
-];
-
-// ── Type icons ────────────────────────────────────────────────────────────────
-
-function PaperIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <line x1="10" y1="9" x2="8" y2="9" />
-    </svg>
-  );
-}
-
-function RepoIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 98 96"
-      fill="currentColor"
-      className={className}
-    >
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"
-      />
-    </svg>
-  );
-}
-
-function PackageIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-      <line x1="12" y1="22.08" x2="12" y2="12" />
-    </svg>
-  );
-}
-
-const typeConfig: Record<
-  ProjectType,
-  { label: string; Icon: React.FC<{ className?: string }> }
-> = {
-  paper: { label: "Research Paper", Icon: PaperIcon },
-  repo: { label: "GitHub Repo", Icon: RepoIcon },
-  package: { label: "Package", Icon: PackageIcon },
-};
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { fetchProjects } from "@/lib/api";
+import {
+  trendingProjects,
+  newProjects,
+  type Project as StaticProject,
+} from "@/lib/projects";
+import { typeConfig } from "@/components/agentbase/TypeIcons";
+import type { Project } from "@/lib/types";
 
 const allSectors = [
   "All Sectors",
@@ -250,13 +69,28 @@ function FilterDropdown({
   );
 }
 
-// ── Project card ──────────────────────────────────────────────────────────────
+// ── Project card (works with both API and static projects) ───────────────────
 
-function ProjectCard({ project }: { project: Project }) {
-  const { Icon } = typeConfig[project.type];
+type CardProject = {
+  slug: string;
+  name: string;
+  category: string;
+  type: string;
+  summary: string;
+  raised?: number | string;
+  contributors: number;
+};
+
+function ProjectCard({ project }: { project: CardProject }) {
+  const typeKey = project.type as keyof typeof typeConfig;
+  const { Icon } = typeConfig[typeKey] || typeConfig["repo"];
+  const raised = typeof project.raised === "number"
+    ? `$${project.raised.toLocaleString()}`
+    : project.raised || "$0";
+
   return (
-    <a
-      href="#"
+    <Link
+      href={`/explore/${project.slug}`}
       className="group border border-agentbase-border bg-agentbase-card p-6 flex flex-col gap-4 hover:bg-agentbase-cardHover transition-colors"
     >
       <div className="flex items-center gap-3">
@@ -279,13 +113,13 @@ function ProjectCard({ project }: { project: Project }) {
 
       <div className="flex items-center gap-3 pt-3 border-t border-agentbase-border">
         <span className="inline-flex px-2.5 py-1 bg-agentbase-badgeBg text-agentbase-badgeText text-[11px] font-mono font-bold tracking-wide">
-          {project.raised} raised
+          {raised} raised
         </span>
         <span className="text-[11px] text-agentbase-muted">
           {project.contributors} contributors
         </span>
       </div>
-    </a>
+    </Link>
   );
 }
 
@@ -295,6 +129,8 @@ export default function ExploreClient() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("All Sectors");
   const [search, setSearch] = useState("");
+  const [apiProjects, setApiProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const typeOptions = [
     { value: "all", label: "All Types" },
@@ -305,7 +141,27 @@ export default function ExploreClient() {
 
   const sectorOptions = allSectors.map((s) => ({ value: s, label: s }));
 
-  const filterProjects = (list: Project[]) =>
+  // Fetch API projects
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchProjects()
+      .then((data) => {
+        if (!cancelled) setApiProjects(data.projects);
+      })
+      .catch(() => {
+        // API not available — that's OK, we still have static data
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Combine static (demo) projects with API projects
+  const allStaticProjects = [...trendingProjects, ...newProjects];
+
+  const filterProjects = useCallback((list: CardProject[]) =>
     list.filter((p) => {
       const matchesType = typeFilter === "all" || p.type === typeFilter;
       const matchesSector =
@@ -316,14 +172,14 @@ export default function ExploreClient() {
         p.category.toLowerCase().includes(search.toLowerCase()) ||
         p.summary.toLowerCase().includes(search.toLowerCase());
       return matchesType && matchesSector && matchesSearch;
-    });
+    }), [typeFilter, sectorFilter, search]);
 
-  const filteredTrending = filterProjects(trendingProjects);
-  const filteredNew = filterProjects(newProjects);
-  const noResults = filteredTrending.length === 0 && filteredNew.length === 0;
+  const filteredApi = filterProjects(apiProjects);
+  const filteredStatic = filterProjects(allStaticProjects);
+  const noResults = filteredApi.length === 0 && filteredStatic.length === 0;
 
   return (
-    <div className="px-8 py-12">
+    <div className="px-8 pt-12 pb-20">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-agentbase-text mb-3">
@@ -376,46 +232,53 @@ export default function ExploreClient() {
         />
       </div>
 
-      {/* Trending */}
-      {filteredTrending.length > 0 && (
+      {/* Traced Projects (from API) */}
+      {filteredApi.length > 0 && (
         <section className="mb-14">
           <div className="mb-5">
             <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
-              Popular right now
+              Traced by community
             </p>
             <h2 className="text-2xl font-bold tracking-tighter text-agentbase-text">
-              Trending
+              Live Projects
             </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTrending.map((project) => (
-              <ProjectCard key={project.name} project={project} />
+            {filteredApi.map((project) => (
+              <ProjectCard key={project.slug} project={project} />
             ))}
           </div>
         </section>
       )}
 
-      {/* New Projects */}
-      {filteredNew.length > 0 && (
+      {/* Static/Demo Projects */}
+      {filteredStatic.length > 0 && (
         <section>
           <div className="mb-5">
             <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
-              Recently added
+              Featured
             </p>
             <h2 className="text-2xl font-bold tracking-tighter text-agentbase-text">
-              New Projects
+              Demo Projects
             </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredNew.map((project) => (
-              <ProjectCard key={project.name} project={project} />
+            {filteredStatic.map((project) => (
+              <ProjectCard key={project.slug} project={project} />
             ))}
           </div>
         </section>
       )}
 
+      {/* Loading state */}
+      {loading && filteredApi.length === 0 && (
+        <div className="flex justify-center py-8">
+          <span className="w-1.5 h-1.5 rounded-full bg-agentbase-cyan animate-pulse" />
+        </div>
+      )}
+
       {/* Empty state */}
-      {noResults && (
+      {noResults && !loading && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-12 h-12 border border-agentbase-border flex items-center justify-center mb-4">
             <svg

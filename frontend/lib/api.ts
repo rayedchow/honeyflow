@@ -1,0 +1,116 @@
+import type { Project, ProjectListResponse } from "./types";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+export async function fetchProjects(search?: string): Promise<ProjectListResponse> {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  const url = `${API_BASE}/projects${params.toString() ? `?${params}` : ""}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch projects: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchProject(slug: string): Promise<Project> {
+  const res = await fetch(`${API_BASE}/projects/${slug}`);
+  if (!res.ok) throw new Error(`Failed to fetch project: ${res.status}`);
+  return res.json();
+}
+
+export interface StreamCallbacks {
+  onLog: (message: string) => void;
+  onGraph: (data: { nodes: unknown[]; edges: unknown[] }) => void;
+  onResult: (project: Project) => void;
+  onError: (message: string) => void;
+  onDone: () => void;
+}
+
+export interface TraceOptions {
+  type?: string | null;
+  depth?: number;
+  maxChildren?: number;
+}
+
+export function streamTrace(
+  url: string,
+  opts: TraceOptions | null,
+  callbacks: StreamCallbacks,
+): AbortController {
+  const controller = new AbortController();
+  const params = new URLSearchParams({ url });
+  if (opts?.type) params.set("type", opts.type);
+  if (opts?.depth) params.set("depth", String(opts.depth));
+  if (opts?.maxChildren) params.set("max_children", String(opts.maxChildren));
+
+  const endpoint = `${API_BASE}/stream/trace?${params}`;
+
+  fetch(endpoint, { signal: controller.signal })
+    .then(async (res) => {
+      if (!res.ok) {
+        callbacks.onError(`Server returned ${res.status}`);
+        return;
+      }
+      const reader = res.body?.getReader();
+      if (!reader) {
+        callbacks.onError("No response body");
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let currentEvent = "";
+      let currentData = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            currentData = line.slice(6);
+          } else if (line === "" && currentEvent) {
+            // Empty line = end of event
+            try {
+              switch (currentEvent) {
+                case "log":
+                  callbacks.onLog(JSON.parse(currentData));
+                  break;
+                case "graph":
+                  callbacks.onGraph(JSON.parse(currentData));
+                  break;
+                case "result":
+                  callbacks.onResult(JSON.parse(currentData));
+                  break;
+                case "error":
+                  callbacks.onError(JSON.parse(currentData));
+                  break;
+                case "done":
+                  callbacks.onDone();
+                  break;
+              }
+            } catch {
+              // If JSON parse fails for log, treat as raw string
+              if (currentEvent === "log") {
+                callbacks.onLog(currentData);
+              }
+            }
+            currentEvent = "";
+            currentData = "";
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      if (err.name !== "AbortError") {
+        callbacks.onError(err.message);
+      }
+    });
+
+  return controller;
+}

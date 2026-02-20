@@ -1,10 +1,12 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routes import citation_graph, contributions, graph, package_graph
+from app.database import check_connection, close_engine
+from app.routes import citation_graph, contributions, graph, package_graph, projects, stream
 
 
 def _setup_logging() -> None:
@@ -15,18 +17,29 @@ def _setup_logging() -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize database connectivity on startup and close on shutdown."""
+    log = logging.getLogger(__name__)
+    log.info("Checking database connection...")
+    await check_connection()
+    log.info("Database connection OK.")
+    yield
+    log.info("Disposing database engine...")
+    await close_engine()
+    log.info("Database engine disposed.")
+
+
 def create_app() -> FastAPI:
     _setup_logging()
     log = logging.getLogger(__name__)
     log.info("GitHub token: %s", "configured" if settings.github_token else "NOT SET")
-    log.info(
-        "Gemini API key: %s", "configured" if settings.gemini_api_key else "NOT SET"
-    )
-    log.info("Gemini model: %s", settings.gemini_model)
+    log.info("0G inference API: %s", settings.inference_api_url)
 
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -41,6 +54,8 @@ def create_app() -> FastAPI:
     app.include_router(graph.router)
     app.include_router(citation_graph.router)
     app.include_router(package_graph.router)
+    app.include_router(projects.router)
+    app.include_router(stream.router)
 
     @app.get("/health")
     async def health_check():
