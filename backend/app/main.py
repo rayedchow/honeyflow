@@ -9,6 +9,7 @@ from app.database import check_connection, close_engine
 from app.routes import (
     citation_graph,
     contributions,
+    donations,
     graph,
     jury,
     package_graph,
@@ -17,6 +18,7 @@ from app.routes import (
     vault,
 )
 from app.services.vault_db import init_db
+from app.services.donation_db import init_donations_db
 
 
 def _setup_logging() -> None:
@@ -35,7 +37,9 @@ async def lifespan(app: FastAPI):
     await check_connection()
     log.info("Database connection OK.")
     await init_db()
-    log.info("Vault SQLite ready.")
+    log.info("Vault table ready.")
+    await init_donations_db()
+    log.info("Donations table ready.")
     yield
     log.info("Disposing database engine...")
     await close_engine()
@@ -63,6 +67,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(contributions.router)
+    app.include_router(donations.router)
     app.include_router(graph.router)
     app.include_router(citation_graph.router)
     app.include_router(package_graph.router)

@@ -1,4 +1,5 @@
 import type {
+  DonationsResponse,
   JuryQuestion,
   Project,
   ProjectListResponse,
@@ -119,6 +120,14 @@ export function streamTrace(
     });
 
   return controller;
+}
+
+/* ── Donations ─────────────────────────────────────────── */
+
+export async function fetchDonations(projectId: string): Promise<DonationsResponse> {
+  const res = await fetch(`${API_BASE}/donations/${projectId}`);
+  if (!res.ok) throw new Error(`Failed to fetch donations: ${res.status}`);
+  return res.json();
 }
 
 /* ── Vault / Donate ─────────────────────────────────────── */
