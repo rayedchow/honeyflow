@@ -41,6 +41,7 @@ export interface Project {
   attribution: Record<string, number>;
   dependencies: string[];
   top_contributors: Contributor[];
+  cover_image_url: string | null;
   created_at: string;
   updated_at: string;
 }

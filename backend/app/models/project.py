@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import DateTime, Float, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -35,6 +36,9 @@ class Project(Base):
     )
     top_contributors: Mapped[list] = mapped_column(
         "top_contributors", JSONB, nullable=False, default=list
+    )
+    cover_image_url: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, default=None
     )
     created_at: Mapped[datetime] = mapped_column(
         "created_at", DateTime(timezone=True), nullable=False, server_default=func.now()

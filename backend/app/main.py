@@ -1,8 +1,10 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import check_connection, close_engine
@@ -43,6 +45,9 @@ async def lifespan(app: FastAPI):
     await init_donations_db()
     log.info("Donations table ready.")
     yield
+    from app.services.screenshot import close_browser
+    log.info("Closing Playwright browser...")
+    await close_browser()
     log.info("Disposing database engine...")
     await close_engine()
     log.info("Database engine disposed.")
@@ -78,6 +83,12 @@ def create_app() -> FastAPI:
     app.include_router(stream.router)
     app.include_router(users.router)
     app.include_router(vault.router)
+
+    # Serve screenshot cover images
+    static_dir = Path(__file__).resolve().parent.parent / "static"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    (static_dir / "covers").mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     @app.get("/health")
     async def health_check():

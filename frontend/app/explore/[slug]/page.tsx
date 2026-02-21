@@ -82,6 +82,7 @@ export default async function ProjectPage({ params }: Props) {
     attribution: {},
     dependencies: staticProject.dependencies,
     top_contributors: staticProject.topContributors,
+    cover_image_url: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

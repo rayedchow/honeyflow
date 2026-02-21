@@ -82,6 +82,7 @@ type CardProject = {
   summary: string;
   raised?: number | string;
   contributors: number;
+  cover_image_url?: string | null;
 };
 
 function ProjectCard({ project }: { project: CardProject }) {
@@ -91,11 +92,23 @@ function ProjectCard({ project }: { project: CardProject }) {
     ? `$${project.raised.toLocaleString()}`
     : project.raised || "$0";
 
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   return (
     <Link
       href={`/explore/${project.slug}`}
-      className="group border border-agentbase-border bg-agentbase-card p-6 flex flex-col gap-4 hover:bg-agentbase-cardHover transition-colors"
+      className="group border border-agentbase-border bg-agentbase-card flex flex-col hover:bg-agentbase-cardHover transition-colors overflow-hidden"
     >
+      {project.cover_image_url && (
+        <div className="w-full h-40 overflow-hidden">
+          <img
+            src={`${apiBase}${project.cover_image_url}`}
+            alt={`${project.name} graph`}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+      <div className="p-6 flex flex-col gap-4">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 border border-agentbase-border flex items-center justify-center text-agentbase-muted group-hover:text-agentbase-cyan transition-colors shrink-0">
           <Icon className="w-5 h-5" />
@@ -121,6 +134,7 @@ function ProjectCard({ project }: { project: CardProject }) {
         <span className="text-[11px] text-agentbase-muted">
           {project.contributors} contributors
         </span>
+      </div>
       </div>
     </Link>
   );

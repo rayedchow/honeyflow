@@ -104,6 +104,17 @@ export default function ProjectDetailClient({
         </div>
       </nav>
 
+      {/* Cover image banner */}
+      {project.cover_image_url && (
+        <div className="w-full h-48 md:h-64 overflow-hidden border border-agentbase-border mb-8">
+          <img
+            src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${project.cover_image_url}`}
+            alt={`${project.name} dependency graph`}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+
       {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 items-start">
         {/* ── Left column ──────────────────────────────────────────────── */}

@@ -18,6 +18,7 @@ from app.services.citation_graph_builder import build_citation_graph
 from app.services.github import parse_repo_owner_and_name
 from app.services.graph_builder import build_contribution_graph
 from app.services.package_graph_builder import build_package_graph
+from app.services.screenshot import take_project_screenshot
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +185,7 @@ def _project_to_dict(project: Project) -> dict:
         "attribution": project.attribution,
         "dependencies": project.dependencies,
         "top_contributors": project.top_contributors,
+        "cover_image_url": project.cover_image_url,
         "created_at": project.created_at.isoformat(),
         "updated_at": project.updated_at.isoformat(),
     }
@@ -263,19 +265,47 @@ async def _save_project(result: dict) -> dict:
     canonical_key = _canonical_source_key(result["source_url"], result["type"])
     lock = _SAVE_LOCKS.setdefault(canonical_key, asyncio.Lock())
 
-    async with lock:
-        try:
-            async with session_scope() as session:
-                project = await _upsert_project(session, result, allow_create=True)
-                # Ensure server-populated fields (timestamps/ids) are loaded before serialization.
-                await session.refresh(project)
-                return _project_to_dict(project)
-        except IntegrityError:
-            # Cross-process race fallback on canonical key/source URL uniqueness.
-            async with session_scope() as session:
-                project = await _upsert_project(session, result, allow_create=False)
-                await session.refresh(project)
-                return _project_to_dict(project)
+    last_exc = None
+    for attempt in range(3):
+        async with lock:
+            try:
+                async with session_scope() as session:
+                    project = await _upsert_project(session, result, allow_create=True)
+                    await session.refresh(project)
+                    return _project_to_dict(project)
+            except IntegrityError:
+                async with session_scope() as session:
+                    project = await _upsert_project(session, result, allow_create=False)
+                    await session.refresh(project)
+                    return _project_to_dict(project)
+            except Exception as exc:
+                last_exc = exc
+                logging.getLogger(__name__).warning(
+                    "DB save attempt %d failed: %s", attempt + 1, exc
+                )
+                if attempt < 2:
+                    await asyncio.sleep(1)
+    raise last_exc
+
+
+async def _generate_cover_image(slug: str) -> None:
+    """Background task: screenshot the project page and update the DB."""
+    try:
+        await asyncio.sleep(2)  # let Next.js serve the page
+
+        cover_url = await take_project_screenshot(slug)
+        if not cover_url:
+            return
+
+        async with session_scope() as session:
+            project = await session.scalar(
+                select(Project).where(Project.slug == slug)
+            )
+            if project:
+                project.cover_image_url = cover_url
+                logger.info("Cover image updated for %s: %s", slug, cover_url)
+    except Exception as exc:
+        logger.warning("Cover image generation failed for %s: %s", slug, exc)
 
 
 async def _run_trace(
@@ -429,15 +459,18 @@ async def stream_trace(
             result = trace_task.result()
             yield _sse_event("graph", result["graph_data"])
 
+            slug = _slugify(result["name"])
             try:
                 project_dict = await asyncio.wait_for(_save_project(result), timeout=15.0)
                 yield _sse_event("result", project_dict)
-            except asyncio.TimeoutError:
+                slug = project_dict.get("slug", slug)
+            except Exception as save_exc:
+                logger.warning("DB save failed, sending fallback result: %s", save_exc)
                 yield _sse_event(
                     "result",
                     {
                         "id": 0,
-                        "slug": _slugify(result["name"]),
+                        "slug": slug,
                         "name": result["name"],
                         "category": result["category"],
                         "type": result["type"],
@@ -451,10 +484,14 @@ async def stream_trace(
                         "attribution": result["attribution"],
                         "dependencies": result["dependencies"],
                         "top_contributors": result["top_contributors"],
+                        "cover_image_url": None,
                         "created_at": "",
                         "updated_at": "",
                     },
                 )
+
+            # Generate cover image in background (fire-and-forget)
+            asyncio.create_task(_generate_cover_image(slug))
 
         except Exception as exc:
             yield _sse_event("error", str(exc))

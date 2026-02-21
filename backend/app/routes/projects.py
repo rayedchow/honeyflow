@@ -24,6 +24,7 @@ def _to_dict(project: Project) -> dict:
         "attribution": project.attribution,
         "dependencies": project.dependencies,
         "top_contributors": project.top_contributors,
+        "cover_image_url": project.cover_image_url,
         "created_at": project.created_at,
         "updated_at": project.updated_at,
     }
