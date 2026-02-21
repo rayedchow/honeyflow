@@ -54,7 +54,7 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "sans-serif"],
+        sans: ["'Neue Haas Grotesk'", "sans-serif"],
         mono: ["var(--font-geist-mono)", "monospace"],
         serif: ["Zarathustra", "serif"],
       },

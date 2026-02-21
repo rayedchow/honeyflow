@@ -177,7 +177,7 @@ export default function DonateClient() {
   const reset = useTraceStore((state) => state.reset);
 
   const hasSource = url.trim().length > 0;
-  const canAnalyze = phase === "idle" && hasSource;
+  const canAnalyze = phase === "idle" && hasSource && depth >= 1 && maxChildren >= 1;
   const canDonate = phase === "complete" && amount.trim().length > 0 && parseFloat(amount) > 0;
 
   const handleAnalyze = useCallback(() => {
@@ -330,13 +330,18 @@ export default function DonateClient() {
                   Depth
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={depth}
-                  onChange={(e) => setDepth(Number(e.target.value))}
+                  type="text"
+                  inputMode="numeric"
+                  value={depth || ""}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, "");
+                    if (raw === "") { setDepth(0); return; }
+                    setDepth(Math.min(parseInt(raw, 10), 10));
+                  }}
+                  onBlur={() => { if (depth < 1) setDepth(1); }}
+                  placeholder="1"
                   disabled={phase !== "idle"}
-                  className="w-full border border-agentbase-border bg-agentbase-card px-2 py-1.5 text-[12px] font-mono text-agentbase-text outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-full border border-agentbase-border bg-agentbase-card px-2 py-1.5 text-[12px] font-mono text-agentbase-text outline-none disabled:opacity-50 placeholder-agentbase-placeholder"
                 />
               </div>
               <div>
@@ -344,13 +349,18 @@ export default function DonateClient() {
                   Max Children
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={maxChildren}
-                  onChange={(e) => setMaxChildren(Number(e.target.value))}
+                  type="text"
+                  inputMode="numeric"
+                  value={maxChildren || ""}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, "");
+                    if (raw === "") { setMaxChildren(0); return; }
+                    setMaxChildren(Math.min(parseInt(raw, 10), 50));
+                  }}
+                  onBlur={() => { if (maxChildren < 1) setMaxChildren(1); }}
+                  placeholder="1"
                   disabled={phase !== "idle"}
-                  className="w-full border border-agentbase-border bg-agentbase-card px-2 py-1.5 text-[12px] font-mono text-agentbase-text outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-full border border-agentbase-border bg-agentbase-card px-2 py-1.5 text-[12px] font-mono text-agentbase-text outline-none disabled:opacity-50 placeholder-agentbase-placeholder"
                 />
               </div>
             </div>
@@ -410,66 +420,6 @@ export default function DonateClient() {
               </div>
             )}
 
-            <div className="p-5 border-t border-agentbase-border">
-              <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-2">
-                Set amount
-              </p>
-              <div className="flex items-center gap-2 border border-agentbase-border bg-agentbase-card px-3 py-2.5">
-                <EthIcon size={12} />
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="bg-transparent outline-none text-base font-bold text-agentbase-text placeholder-agentbase-placeholder w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted flex-shrink-0">
-                  ETH
-                </span>
-              </div>
-              {txStatus === "done" && txHash ? (
-                <a
-                  href={`https://sepolia.etherscan.io/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white font-mono text-[10px] tracking-widest uppercase font-bold rounded-full hover:bg-green-700 transition-colors"
-                >
-                  Donated! View tx &rarr;
-                </a>
-              ) : (
-                <button
-                  onClick={!walletAddress && txStatus === "idle" ? connectWallet : handleDonate}
-                  disabled={
-                    (txStatus === "idle" && walletAddress !== null && !canDonate) ||
-                    txStatus === "sending" ||
-                    txStatus === "confirming" ||
-                    txStatus === "connecting" ||
-                    walletConnecting
-                  }
-                  className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-agentbase-invertedBg text-agentbase-invertedText font-mono text-[10px] tracking-widest uppercase font-bold rounded-full hover:bg-agentbase-invertedHover transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <EthIcon size={10} />
-                  {(() => {
-                    if (walletConnecting || txStatus === "connecting") return "Connecting…";
-                    if (txStatus === "sending") return "Confirm in MetaMask…";
-                    if (txStatus === "confirming") return "Verifying on-chain…";
-                    if (txStatus === "error") return "Failed — retry";
-                    if (!walletAddress) return "Connect Wallet";
-                    return `Donate ${amount || "0"} ETH`;
-                  })()}
-                </button>
-              )}
-              {txError && (
-                <p className="mt-2 text-[10px] text-red-400 text-center">{txError}</p>
-              )}
-              {canDonate && result && txStatus === "idle" && (
-                <p className="mt-2 text-[10px] text-agentbase-muted text-center">
-                  Splits across {result.contributors} contributors
-                </p>
-              )}
-            </div>
           </div>
         </div>
       </div>

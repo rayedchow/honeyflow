@@ -2,6 +2,8 @@ import { getBrokerContext } from "./broker";
 import { buildPrompt, type InferenceAction } from "./prompts";
 
 const MAX_RETRIES = 2;
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 interface ChatCompletion {
   id: string;
@@ -12,7 +14,22 @@ interface ChatCompletion {
  * Call 0G inference with a pre-built prompt string. Returns raw text.
  */
 export async function infer(prompt: string): Promise<string | null> {
-  const ctx = await getBrokerContext();
+  // Try 0G first
+  const zeroGResult = await infer0G(prompt);
+  if (zeroGResult !== null) return zeroGResult;
+
+  return inferFallback(prompt);
+}
+
+async function infer0G(prompt: string): Promise<string | null> {
+  let ctx;
+  try {
+    ctx = await getBrokerContext();
+  } catch (e) {
+    console.warn("[0G] broker init failed:", e);
+    return null;
+  }
+
   let lastErr: unknown;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -70,6 +87,38 @@ export async function infer(prompt: string): Promise<string | null> {
 
   console.error("[0G] all inference attempts failed:", lastErr);
   return null;
+}
+
+async function inferFallback(prompt: string): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: "application/json",
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`0G inference ${res.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = await res.json();
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    console.log("[0G] inference OK, response length:", content.length);
+    return content;
+  } catch {
+    return null;
+  }
 }
 
 /**

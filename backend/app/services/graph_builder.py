@@ -115,7 +115,10 @@ class GraphBuilder:
             else:
                 await self._build_lightweight(owner, repo, node_id, depth)
         except Exception as exc:
-            logger.warning("Analysis failed for %s: %s", repo_key, exc)
+            logger.warning(
+                "Analysis failed for %s: [%s] %s",
+                repo_key, type(exc).__name__, exc, exc_info=True,
+            )
             await self._add_contributor_leaves(owner, repo, node_id)
         finally:
             if source_dir:

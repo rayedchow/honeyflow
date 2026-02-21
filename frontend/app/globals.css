@@ -2,6 +2,100 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Neue Haas Grotesk Text ────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: 'Neue Haas Grotesk';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrottext-55roman-trial.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrottext-56italic-trial.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrottext-65medium-trial.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrottext-66mediumitalic-trial.otf') format('opentype');
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrottext-75bold-trial.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrottext-76bolditalic-trial.otf') format('opentype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ── Neue Haas Grotesk Display (headings, large text) ──────────────────────── */
+
+@font-face {
+  font-family: 'Neue Haas Grotesk Display';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrotdisp-45light-trial.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk Display';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrotdisp-55roman-trial.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk Display';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrotdisp-65medium-trial.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk Display';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrotdisp-75bold-trial.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Haas Grotesk Display';
+  src: url('/fonts/neue-haas-grotesk-font-fanily/neuehaasgrotdisp-95black-trial.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Zarathustra (serif) ───────────────────────────────────────────────────── */
+
 @font-face {
   font-family: 'Zarathustra';
   src: url('/zarathustra.otf') format('opentype');
@@ -234,7 +328,7 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: 'Neue Haas Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   line-height: 1.5;
   overflow-x: hidden;
 }
