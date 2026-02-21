@@ -148,7 +148,7 @@ async def fetch_repo_metadata(owner: str, repo: str) -> Dict[str, Any]:
         "     %s/%s -> %s, %d languages",
         owner,
         repo,
-        repo_data.get("description", "")[:60],
+        (repo_data.get("description") or "")[:60],
         len(languages),
     )
     return {

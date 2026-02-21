@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useWalletStore } from "@/lib/wallet-store";
 
+const SEPOLIA_CHAIN_ID = "0xaa36a7"; // 11155111
+
 interface WalletState {
   address: string | null;
   chainId: string | null;
@@ -10,6 +12,7 @@ interface WalletState {
   error: string | null;
   connect: () => Promise<string | null>;
   disconnect: () => void;
+  ensureSepolia: () => Promise<boolean>;
 }
 
 declare global {
@@ -133,5 +136,47 @@ export function useWallet(): WalletState {
     }
   }, [clear]);
 
-  return { address, chainId, isConnecting, error, connect, disconnect };
+  const ensureSepolia = useCallback(async (): Promise<boolean> => {
+    const eth = window.ethereum;
+    if (!eth) {
+      setError("MetaMask not installed");
+      return false;
+    }
+
+    try {
+      const current = ((await eth.request({ method: "eth_chainId" })) as string).toLowerCase();
+      if (current === SEPOLIA_CHAIN_ID) return true;
+
+      try {
+        await eth.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: SEPOLIA_CHAIN_ID }],
+        });
+        setWallet(useWalletStore.getState().address, SEPOLIA_CHAIN_ID);
+        return true;
+      } catch (switchErr: unknown) {
+        if ((switchErr as { code?: number }).code === 4902) {
+          await eth.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: SEPOLIA_CHAIN_ID,
+              chainName: "Sepolia Testnet",
+              nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+              rpcUrls: ["https://rpc.sepolia.org"],
+              blockExplorerUrls: ["https://sepolia.etherscan.io"],
+            }],
+          });
+          setWallet(useWalletStore.getState().address, SEPOLIA_CHAIN_ID);
+          return true;
+        }
+        setError("Please switch to Sepolia network");
+        return false;
+      }
+    } catch {
+      setError("Failed to check network");
+      return false;
+    }
+  }, [setWallet]);
+
+  return { address, chainId, isConnecting, error, connect, disconnect, ensureSepolia };
 }
