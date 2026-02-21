@@ -12,6 +12,7 @@ export interface GraphEdge {
   target: string;
   weight: number;
   label: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface GraphData {
@@ -47,4 +48,68 @@ export interface Project {
 export interface ProjectListResponse {
   projects: Project[];
   count: number;
+}
+
+export interface JuryPeer {
+  name: string;
+  ai_pct: number;
+  detail: string;
+  is_subject: boolean;
+}
+
+export interface JuryCodeSample {
+  filename: string;
+  patch: string;
+  commit_message: string;
+  commit_url: string;
+}
+
+export interface JuryLink {
+  label: string;
+  url: string;
+}
+
+export interface JuryEdgeRef {
+  source_id: string;
+  target_id: string;
+  ai_weight: number;
+  ai_percentage: number;
+  question_type: string;
+}
+
+export interface JuryQuestion {
+  question_id: string;
+  prompt: string;
+
+  project_name: string;
+  project_id: number;
+  project_slug: string;
+  project_description: string;
+  project_url?: string;
+
+  subject_name: string;
+  subject_summary: string;
+
+  peers: JuryPeer[];
+  total_peers: number;
+
+  links: JuryLink[];
+  code_samples: JuryCodeSample[];
+
+  edge: JuryEdgeRef;
+}
+
+export interface SubmitJuryAnswer {
+  question_id?: string;
+  project_id: number;
+  edge_source: string;
+  edge_target: string;
+  human_percentage: number;
+  confidence: number;
+}
+
+export interface SubmitJuryAnswersResponse {
+  accepted: number;
+  updated_projects: number;
+  reward_eth: number;
 }

@@ -335,6 +335,90 @@ def _parse_detailed_stats(raw: List[Dict]) -> List[Dict[str, Any]]:
 # ------------------------------------------------------------------
 
 
+async def fetch_contributor_commits(
+    owner: str,
+    repo: str,
+    login: str,
+    limit: int = 3,
+) -> List[Dict[str, Any]]:
+    """Fetch recent commits by a contributor, with code patches for the top commit."""
+    base = settings.github_api_base
+    list_url = "{}/repos/{}/{}/commits".format(base, owner, repo)
+
+    logger.info("GET  %s/%s commits?author=%s (limit=%d)", owner, repo, login, limit)
+
+    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+        resp = await client.get(
+            list_url,
+            headers=_headers(),
+            params={"author": login, "per_page": str(limit)},
+        )
+        if resp.status_code != 200:
+            return []
+
+        commits_list = resp.json()
+        if not isinstance(commits_list, list) or not commits_list:
+            return []
+
+        results: List[Dict[str, Any]] = []
+
+        first = commits_list[0]
+        sha = str(first.get("sha", ""))
+        fetched_detail = False
+
+        if sha:
+            detail_resp = await client.get(
+                "{}/repos/{}/{}/commits/{}".format(base, owner, repo, sha),
+                headers=_headers(),
+            )
+            if detail_resp.status_code == 200:
+                detail = detail_resp.json()
+                files = detail.get("files", [])
+                files.sort(
+                    key=lambda f: f.get("additions", 0) + f.get("deletions", 0),
+                    reverse=True,
+                )
+                top_files = []
+                for f in files[:2]:
+                    patch = f.get("patch") or ""
+                    if len(patch) > 800:
+                        lines = patch.split("\n")
+                        patch = "\n".join(lines[:25]) + "\n..."
+                    top_files.append({
+                        "filename": f.get("filename", ""),
+                        "patch": patch,
+                    })
+
+                msg = detail.get("commit", {}).get("message", "")
+                results.append({
+                    "message": msg.split("\n")[0][:200],
+                    "url": detail.get("html_url", ""),
+                    "files": top_files,
+                })
+                fetched_detail = True
+
+        if not fetched_detail:
+            msg = first.get("commit", {}).get("message", "")
+            results.append({
+                "message": msg.split("\n")[0][:200],
+                "url": first.get("html_url", ""),
+                "files": [],
+            })
+
+        for c in commits_list[1:]:
+            msg = c.get("commit", {}).get("message", "")
+            results.append({
+                "message": msg.split("\n")[0][:200],
+                "url": c.get("html_url", ""),
+                "files": [],
+            })
+
+        logger.info(
+            "     %s/%s got %d commits for %s", owner, repo, len(results), login,
+        )
+        return results
+
+
 async def fetch_file_content(owner: str, repo: str, path: str) -> Optional[str]:
     """Fetch a single file from a repo via the Contents API."""
     logger.info("GET  %s/%s contents/%s", owner, repo, path)

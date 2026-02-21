@@ -23,6 +23,7 @@ class Edge(BaseModel):
     target: str
     weight: float
     label: str = ""
+    metadata: Dict[str, Any] = {}
 
 
 class Graph(BaseModel):

@@ -24,6 +24,7 @@ class CitationEdge(BaseModel):
     target: str
     weight: float
     label: str = ""
+    metadata: Dict[str, Any] = {}
 
 
 class CitationGraph(BaseModel):

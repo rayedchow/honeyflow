@@ -42,9 +42,16 @@ class PackageGraphBuilder:
         self.nodes: List[Node] = []
         self.edges: List[Edge] = []
         self._visited: Set[str] = set()
+        self._human_priors: Dict[str, Any] = {}
 
     async def build(self, package_name: str, ecosystem: str) -> Graph:
         """Build the full graph starting from a package name."""
+        from app.services.jury_priors import load_priors
+        try:
+            self._human_priors = await load_priors()
+        except Exception:
+            self._human_priors = {}
+
         logger.info(
             "========== Building package graph for %s:%s (depth=%d, children=%d) ==========",
             ecosystem,
@@ -379,19 +386,39 @@ class PackageGraphBuilder:
 
         dev_mult = settings.graph.dev_dep_weight_multiplier
 
-        dep_weights: List[Tuple[Dependency, float]] = []
+        dep_weights: List[Tuple[Dependency, float, Dict[str, Any]]] = []
         for dep in top:
             raw = dep_importance.get(dep.name, 0.01)
             if dep.dev_only:
                 raw *= dev_mult
             weight = round((raw / total_raw) * budget, 4)
             if weight >= 0.001:
-                dep_weights.append((dep, weight))
+                dep_weights.append(
+                    (
+                        dep,
+                        weight,
+                        {
+                            "dependency_name": dep.name,
+                            "dependency_version": dep.version,
+                            "is_dev_dependency": dep.dev_only,
+                            "importance_score": round(
+                                dep_importance.get(dep.name, 0.01), 4
+                            ),
+                        },
+                    )
+                )
 
         build_tasks = []
-        for dep, weight in dep_weights:
+        for dep, weight, edge_meta in dep_weights:
             build_tasks.append(
-                self._process_single_dep(parent_id, dep, weight, ecosystem, depth)
+                self._process_single_dep(
+                    parent_id,
+                    dep,
+                    weight,
+                    ecosystem,
+                    depth,
+                    edge_metadata=edge_meta,
+                )
             )
 
         if build_tasks:
@@ -408,6 +435,7 @@ class PackageGraphBuilder:
         weight: float,
         ecosystem: str,
         depth: int,
+        edge_metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Process a single dependency: recurse or create leaf with contributors."""
         norm = self._norm(dep.name, ecosystem)
@@ -421,13 +449,18 @@ class PackageGraphBuilder:
                         target=target_id,
                         weight=weight,
                         label="{}%".format(round(weight * 100, 1)),
+                        metadata=edge_metadata or {},
                     )
                 )
                 await self._build_node(dep.name, ecosystem, depth - 1, parent_id)
             except Exception as exc:
                 logger.warning("Failed to recurse into %s: %s", dep.name, exc)
                 dep_node_id = self._add_leaf_dep(
-                    parent_id, dep.name, weight, ecosystem
+                    parent_id,
+                    dep.name,
+                    weight,
+                    ecosystem,
+                    edge_metadata=edge_metadata,
                 )
                 github_url = await self._resolve_github_safe(dep.name, ecosystem)
                 if github_url:
@@ -438,7 +471,11 @@ class PackageGraphBuilder:
                         pass
         else:
             dep_node_id = self._add_leaf_dep(
-                parent_id, dep.name, weight, ecosystem
+                parent_id,
+                dep.name,
+                weight,
+                ecosystem,
+                edge_metadata=edge_metadata,
             )
             github_url = await self._resolve_github_safe(dep.name, ecosystem)
             if github_url:
@@ -454,6 +491,7 @@ class PackageGraphBuilder:
         dep_name: str,
         weight: float,
         ecosystem: str,
+        edge_metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Add a leaf BODY_OF_WORK node for a dependency."""
         norm = self._norm(dep_name, ecosystem)
@@ -477,6 +515,7 @@ class PackageGraphBuilder:
                 target=dep_node_id,
                 weight=weight,
                 label="{}%".format(round(weight * 100, 1)),
+                metadata=edge_metadata or {},
             )
         )
         return dep_node_id
@@ -620,6 +659,7 @@ class PackageGraphBuilder:
                     target=self.edges[i].target,
                     weight=new_w,
                     label="{}%".format(round(new_w * 100, 1)),
+                    metadata=self.edges[i].metadata,
                 )
 
     # ------------------------------------------------------------------
@@ -683,6 +723,11 @@ class PackageGraphBuilder:
 
         top = stats[: self.max_children]
         scores = self._score_contributors(top)
+
+        from app.services.jury_priors import apply_priors_to_scores
+        if self._human_priors:
+            scores = apply_priors_to_scores(scores, "contributor", self._human_priors)
+
         total = sum(scores.values())
         if total <= 0:
             return
@@ -696,18 +741,25 @@ class PackageGraphBuilder:
                 continue
 
             user_node_id = "user:{}:{}".format(login, parent_id)
-            avatar = ""
+            contrib_stats: Dict[str, Any] = {}
             for s in top:
                 if s["login"] == login:
-                    avatar = s.get("avatar_url", "")
+                    contrib_stats = s
                     break
+            avatar = contrib_stats.get("avatar_url", "")
 
             self.nodes.append(
                 Node(
                     id=user_node_id,
                     type=NodeType.CONTRIBUTOR,
                     label=login,
-                    metadata={"avatar_url": avatar},
+                    metadata={
+                        "avatar_url": avatar,
+                        "total_commits": contrib_stats.get("total_commits", 0),
+                        "total_additions": contrib_stats.get("total_additions", 0),
+                        "total_deletions": contrib_stats.get("total_deletions", 0),
+                        "total_lines": contrib_stats.get("total_lines", 0),
+                    },
                 )
             )
             self.edges.append(
@@ -716,6 +768,14 @@ class PackageGraphBuilder:
                     target=user_node_id,
                     weight=weight,
                     label="{}%".format(round(weight * 100, 1)),
+                    metadata={
+                        "contributor_login": login,
+                        "contributor_score_raw": round(raw_score, 6),
+                        "contributor_total_lines": contrib_stats.get("total_lines", 0),
+                        "contributor_total_commits": contrib_stats.get(
+                            "total_commits", 0
+                        ),
+                    },
                 )
             )
 

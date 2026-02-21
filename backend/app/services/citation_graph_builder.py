@@ -325,6 +325,7 @@ class CitationGraphBuilder:
                 target=original_id,
                 weight=round(weight, 4),
                 label="{}%".format(round(weight * 100, 1)),
+                metadata={"edge_kind": "original_contribution"},
             )
         )
         return original_id
@@ -443,6 +444,14 @@ class CitationGraphBuilder:
                         target=target_id,
                         weight=weight,
                         label="{}%".format(round(weight * 100, 1)),
+                        metadata={
+                            "edge_kind": "citation",
+                            "citation_key": citation.key,
+                            "citation_title": citation.title,
+                            "citation_frequency": citation.frequency,
+                            "explicit_mentions": citation.explicit_count,
+                            "conceptual_mentions": citation.conceptual_count,
+                        },
                     )
                 )
                 await self._build_paper_node(arxiv_id, depth - 1, parent_id)
@@ -504,6 +513,14 @@ class CitationGraphBuilder:
                 target=node_id,
                 weight=weight,
                 label="{}%".format(round(weight * 100, 1)),
+                metadata={
+                    "edge_kind": "citation",
+                    "citation_key": citation.key,
+                    "citation_title": citation.title,
+                    "citation_frequency": citation.frequency,
+                    "explicit_mentions": citation.explicit_count,
+                    "conceptual_mentions": citation.conceptual_count,
+                },
             )
         )
         return node_id
@@ -590,6 +607,11 @@ class CitationGraphBuilder:
                     target=author_node_id,
                     weight=weight,
                     label="{}%".format(round(weight * 100, 1)),
+                    metadata={
+                        "edge_kind": "author_credit",
+                        "author_position": i + 1,
+                        "total_authors": total,
+                    },
                 )
             )
 
@@ -719,6 +741,7 @@ class CitationGraphBuilder:
                     target=self.edges[i].target,
                     weight=new_w,
                     label="{}%".format(round(new_w * 100, 1)),
+                    metadata=self.edges[i].metadata,
                 )
 
     # ------------------------------------------------------------------

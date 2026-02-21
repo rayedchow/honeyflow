@@ -290,10 +290,10 @@ export default function Hero() {
                             Donate
                         </Link>
                         <Link
-                            href="/docs"
+                            href="/jury"
                             className="px-6 py-3 bg-agentbase-btnSecBg text-agentbase-btnSecText border border-agentbase-btnSecBorder border-2 font-mono text-xs tracking-widest uppercase font-bold rounded-full hover:bg-agentbase-btnSecHover transition-colors"
                         >
-                            View Docs →
+                            Be a Human Juror →
                         </Link>
                     </div>
                 </div>

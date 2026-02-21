@@ -177,6 +177,15 @@ async def rank_dependency_importance(
         llm_score = max(0.0, min(1.0, float(llm_score)))
         blended[name] = (w_usage * norm_usage) + (w_llm * llm_score)
 
+    try:
+        from app.services.jury_priors import apply_priors_to_scores, load_priors
+        priors = await load_priors("dependency")
+        if priors:
+            blended = apply_priors_to_scores(blended, "dependency", priors)
+            logger.info("[LLM] Applied human priors to %d dependency scores", len(blended))
+    except Exception as exc:
+        logger.debug("[LLM] Could not apply dependency priors: %s", exc)
+
     return blended
 
 
@@ -246,14 +255,34 @@ async def rank_citation_influence(
             if not isinstance(score, (int, float)):
                 score = 0.2
             scores[key] = max(0.0, min(1.0, float(score)))
+
+        try:
+            from app.services.jury_priors import apply_priors_to_scores, load_priors
+            priors = await load_priors("citation")
+            if priors:
+                scores = apply_priors_to_scores(scores, "citation", priors)
+        except Exception:
+            pass
+
         return scores
 
     logger.info("[LLM] No LLM influence scores, falling back to frequency-based ranking")
     max_freq = max((c.get("frequency", 1) for c in citations), default=1) or 1
-    return {
+    scores = {
         c.get("key", ""): c.get("frequency", 0) / max_freq
         for c in citations
     }
+
+    try:
+        from app.services.jury_priors import apply_priors_to_scores, load_priors
+        priors = await load_priors("citation")
+        if priors:
+            scores = apply_priors_to_scores(scores, "citation", priors)
+            logger.info("[LLM] Applied human priors to %d citation scores", len(scores))
+    except Exception as exc:
+        logger.debug("[LLM] Could not apply citation priors: %s", exc)
+
+    return scores
 
 
 async def analyze_paper(

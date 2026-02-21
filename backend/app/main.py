@@ -6,7 +6,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import check_connection, close_engine
-from app.routes import citation_graph, contributions, graph, package_graph, projects, stream, vault
+from app.routes import (
+    citation_graph,
+    contributions,
+    graph,
+    jury,
+    package_graph,
+    projects,
+    stream,
+    vault,
+)
 from app.services.vault_db import init_db
 
 
@@ -58,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(citation_graph.router)
     app.include_router(package_graph.router)
     app.include_router(projects.router)
+    app.include_router(jury.router)
     app.include_router(stream.router)
     app.include_router(vault.router)
 

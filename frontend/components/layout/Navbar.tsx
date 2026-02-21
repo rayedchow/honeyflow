@@ -12,10 +12,10 @@ export default function Navbar({ maxW = "64rem" }: { maxW?: string }) {
     <>
       <div className="w-full flex justify-center">
         <div
-          className="w-full flex justify-center py-2 text-[11px] text-agentbase-invertedText hover:text-agentbase-invertedText/70 bg-agentbase-invertedBg font-sans font-semibold tracking-wide border-x border-agentbase-invertedBg transition-[max-width,color] duration-700 ease-in-out"
+          className="w-full flex justify-center py-2 text-[11px] text-black hover:text-black/70 bg-agentbase-yellow font-sans font-semibold tracking-wide border-x border-agentbase-yellow transition-[max-width,color] duration-700 ease-in-out"
           style={{ maxWidth: maxW }}
         >
-          <Link href="https://discord.com/invite/KFtqf7j9fs" target="_blank" rel="noopener noreferrer">
+          <Link href="/jury">
             Join the swarm - start as a juror for any topic →
           </Link>
         </div>
@@ -38,6 +38,16 @@ export default function Navbar({ maxW = "64rem" }: { maxW?: string }) {
                 <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
               </svg>
               <span className="text-[11px] font-mono font-bold tracking-widest uppercase">Explore</span>
+            </Link>
+
+            <Link href="/jury" className="flex items-center gap-2 text-agentbase-text hover:opacity-70 transition-opacity" aria-label="Jury">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 11.5A2.5 2.5 0 1 1 11.5 9 2.5 2.5 0 0 1 9 11.5z" />
+                <path d="M16 12a2 2 0 1 0-2-2 2 2 0 0 0 2 2z" />
+                <path d="M4 20a5 5 0 0 1 10 0" />
+                <path d="M13.5 20a4.5 4.5 0 0 1 7.5-3.3" />
+              </svg>
+              <span className="text-[11px] font-mono font-bold tracking-widest uppercase">Jury</span>
             </Link>
           </div>
 

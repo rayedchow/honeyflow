@@ -1,4 +1,10 @@
-import type { Project, ProjectListResponse } from "./types";
+import type {
+  JuryQuestion,
+  Project,
+  ProjectListResponse,
+  SubmitJuryAnswer,
+  SubmitJuryAnswersResponse,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -144,5 +150,31 @@ export async function confirmDonate(
     }),
   });
   if (!res.ok) throw new Error(`Failed to confirm donation: ${res.status}`);
+  return res.json();
+}
+
+/* ── Jury ─────────────────────────────────────────────────────── */
+
+export async function fetchJuryQuestions(count = 5): Promise<JuryQuestion[]> {
+  const params = new URLSearchParams({ count: String(count) });
+  const res = await fetch(`${API_BASE}/jury/questions?${params.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch jury questions: ${res.status}`);
+  const data = await res.json();
+  return data.questions ?? [];
+}
+
+export async function submitJuryAnswers(
+  walletAddress: string,
+  answers: SubmitJuryAnswer[],
+): Promise<SubmitJuryAnswersResponse> {
+  const res = await fetch(`${API_BASE}/jury/answers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      wallet_address: walletAddress,
+      answers,
+    }),
+  });
+  if (!res.ok) throw new Error(`Failed to submit jury answers: ${res.status}`);
   return res.json();
 }

@@ -43,9 +43,16 @@ class GraphBuilder:
         self.nodes: List[Node] = []
         self.edges: List[Edge] = []
         self._visited: Set[str] = set()
+        self._human_priors: Dict[str, Any] = {}
 
     async def build(self, repo_url: str) -> Graph:
         """Build the full graph starting from a repo URL."""
+        from app.services.jury_priors import load_priors
+        try:
+            self._human_priors = await load_priors()
+        except Exception:
+            self._human_priors = {}
+
         owner, repo = parse_repo_owner_and_name(repo_url)
         logger.info(
             "========== Building graph for %s/%s (depth=%d, children=%d) ==========",
@@ -169,11 +176,14 @@ class GraphBuilder:
             repo_analysis = await llm.analyze_repo(readme, metadata, file_tree)
 
             if dep_names:
+                matched_usage = self._match_usage(deps, usage_freq, ecosystem)
                 split_task = llm.split_direct_vs_deps(
                     repo_analysis, len(dep_names), source_file_count
                 )
                 rank_task = llm.rank_dependency_importance(
-                    repo_analysis, dep_names, self._match_usage(deps, usage_freq, ecosystem)
+                    repo_analysis,
+                    dep_names,
+                    matched_usage,
                 )
                 (direct_frac, deps_frac), dep_importance = await asyncio.gather(
                     split_task, rank_task
@@ -181,6 +191,7 @@ class GraphBuilder:
             else:
                 direct_frac, deps_frac = 1.0, 0.0
                 dep_importance = {}
+                matched_usage = {}
         else:
             logger.info(
                 "[GRAPH] Phase 2: heuristic analysis (LLM skipped) for %s/%s",
@@ -194,8 +205,10 @@ class GraphBuilder:
             }
             direct_frac = 1.0 if not dep_names else 0.6
             deps_frac = 0.0 if not dep_names else 0.4
+            matched_usage = self._match_usage(deps, usage_freq, ecosystem)
             dep_importance = self._heuristic_dep_ranking(
-                deps, self._match_usage(deps, usage_freq, ecosystem)
+                deps,
+                matched_usage,
             )
 
         self.nodes[self._node_index(node_id)].metadata = {
@@ -229,7 +242,13 @@ class GraphBuilder:
                 len(prod_deps),
             )
             await self._add_dependency_children(
-                node_id, ecosystem, prod_deps, dep_importance, deps_frac, depth
+                node_id,
+                ecosystem,
+                prod_deps,
+                dep_importance,
+                deps_frac,
+                depth,
+                usage_map=matched_usage,
             )
 
         return source_dir
@@ -384,6 +403,7 @@ class GraphBuilder:
         dep_importance: Dict[str, float],
         budget: float,
         depth: int,
+        usage_map: Optional[Dict[str, int]] = None,
     ) -> None:
         """Add the top-N dependency nodes as children of parent_id."""
         ranked = sorted(
@@ -399,29 +419,50 @@ class GraphBuilder:
 
         dev_mult = settings.graph.dev_dep_weight_multiplier
 
-        dep_weights: List[Tuple[Dependency, float]] = []
+        dep_weights: List[Tuple[Dependency, float, Dict[str, Any]]] = []
         for dep in top:
             raw = dep_importance.get(dep.name, 0.01)
             if dep.dev_only:
                 raw *= dev_mult
             weight = round((raw / total_raw) * budget, 4)
             if weight >= 0.001:
-                dep_weights.append((dep, weight))
+                dep_weights.append(
+                    (
+                        dep,
+                        weight,
+                        {
+                            "dependency_name": dep.name,
+                            "dependency_version": dep.version,
+                            "is_dev_dependency": dep.dev_only,
+                            "importance_score": round(
+                                dep_importance.get(dep.name, 0.01), 4
+                            ),
+                            "usage_import_count": (usage_map or {}).get(dep.name, 0),
+                        },
+                    )
+                )
 
         # Resolve all registry URLs in parallel
         logger.info(
             "[GRAPH] Resolving %d dependency URLs in parallel ...", len(dep_weights)
         )
         resolve_tasks = [
-            resolve_to_github_url(d.name, ecosystem) for d, _ in dep_weights
+            resolve_to_github_url(d.name, ecosystem) for d, _, _ in dep_weights
         ]
         github_urls = await asyncio.gather(*resolve_tasks)
 
         # Build all dep nodes in parallel
         build_tasks = []
-        for (dep, weight), github_url in zip(dep_weights, github_urls):
+        for (dep, weight, edge_meta), github_url in zip(dep_weights, github_urls):
             build_tasks.append(
-                self._process_single_dep(parent_id, dep, weight, github_url, depth)
+                self._process_single_dep(
+                    parent_id,
+                    dep,
+                    weight,
+                    github_url,
+                    depth,
+                    edge_metadata=edge_meta,
+                )
             )
 
         if build_tasks:
@@ -437,6 +478,7 @@ class GraphBuilder:
         weight: float,
         github_url: Optional[str],
         depth: int,
+        edge_metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Process a single dependency: recurse or create leaf with contributors."""
         if not github_url:
@@ -464,13 +506,18 @@ class GraphBuilder:
                         target=target_id,
                         weight=weight,
                         label="{}%".format(round(weight * 100, 1)),
+                        metadata=edge_metadata or {},
                     )
                 )
                 await self._build_node(dep_owner, dep_repo, depth - 1, parent_id)
             except Exception as exc:
                 logger.warning("Failed to recurse into %s: %s", dep.name, exc)
                 dep_node_id = self._add_leaf_dep(
-                    parent_id, dep.name, weight, github_url
+                    parent_id,
+                    dep.name,
+                    weight,
+                    github_url,
+                    edge_metadata=edge_metadata,
                 )
                 try:
                     dep_owner, dep_repo = parse_repo_owner_and_name(github_url)
@@ -478,7 +525,13 @@ class GraphBuilder:
                 except Exception:
                     pass
         else:
-            dep_node_id = self._add_leaf_dep(parent_id, dep.name, weight, github_url)
+            dep_node_id = self._add_leaf_dep(
+                parent_id,
+                dep.name,
+                weight,
+                github_url,
+                edge_metadata=edge_metadata,
+            )
             try:
                 dep_owner, dep_repo = parse_repo_owner_and_name(github_url)
                 await self._add_contributor_leaves(dep_owner, dep_repo, dep_node_id)
@@ -491,6 +544,7 @@ class GraphBuilder:
         dep_name: str,
         weight: float,
         github_url: Optional[str] = None,
+        edge_metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Add a leaf BODY_OF_WORK node for a dependency."""
         if github_url:
@@ -520,6 +574,7 @@ class GraphBuilder:
                 target=dep_node_id,
                 weight=weight,
                 label="{}%".format(round(weight * 100, 1)),
+                metadata=edge_metadata or {},
             )
         )
         return dep_node_id
@@ -651,6 +706,7 @@ class GraphBuilder:
                     target=self.edges[i].target,
                     weight=new_w,
                     label="{}%".format(round(new_w * 100, 1)),
+                    metadata=self.edges[i].metadata,
                 )
 
     # ------------------------------------------------------------------
@@ -731,6 +787,11 @@ class GraphBuilder:
 
         top = stats[: self.max_children]
         scores = self._score_contributors(top)
+
+        from app.services.jury_priors import apply_priors_to_scores
+        if self._human_priors:
+            scores = apply_priors_to_scores(scores, "contributor", self._human_priors)
+
         total = sum(scores.values())
         if total <= 0:
             return
@@ -742,18 +803,25 @@ class GraphBuilder:
                 continue
 
             user_node_id = "user:{}:{}".format(login, parent_id)
-            avatar = ""
+            contrib_stats: Dict[str, Any] = {}
             for s in top:
                 if s["login"] == login:
-                    avatar = s.get("avatar_url", "")
+                    contrib_stats = s
                     break
+            avatar = contrib_stats.get("avatar_url", "")
 
             self.nodes.append(
                 Node(
                     id=user_node_id,
                     type=NodeType.CONTRIBUTOR,
                     label=login,
-                    metadata={"avatar_url": avatar},
+                    metadata={
+                        "avatar_url": avatar,
+                        "total_commits": contrib_stats.get("total_commits", 0),
+                        "total_additions": contrib_stats.get("total_additions", 0),
+                        "total_deletions": contrib_stats.get("total_deletions", 0),
+                        "total_lines": contrib_stats.get("total_lines", 0),
+                    },
                 )
             )
             self.edges.append(
@@ -762,6 +830,14 @@ class GraphBuilder:
                     target=user_node_id,
                     weight=weight,
                     label="{}%".format(round(weight * 100, 1)),
+                    metadata={
+                        "contributor_login": login,
+                        "contributor_score_raw": round(raw_score, 6),
+                        "contributor_total_lines": contrib_stats.get("total_lines", 0),
+                        "contributor_total_commits": contrib_stats.get(
+                            "total_commits", 0
+                        ),
+                    },
                 )
             )
 
