@@ -60,6 +60,23 @@ async def get_vault(project_id: str) -> Optional[Tuple[str, str]]:
     return None
 
 
+async def get_vault_by_address(address: str) -> Optional[Tuple[str, str]]:
+    """Look up a vault by its on-chain address.
+
+    Returns (wallet_id, project_id) or None if not found.
+    """
+    async with SessionLocal() as session:
+        result = await session.execute(
+            select(project_vaults.c.wallet_id, project_vaults.c.project_id).where(
+                func.lower(project_vaults.c.address) == address.lower()
+            )
+        )
+        row = result.first()
+    if row:
+        return (row[0], row[1])
+    return None
+
+
 async def create_vault(project_id: str, wallet_id: str, address: str) -> None:
     """Insert a new vault record."""
     async with SessionLocal() as session:

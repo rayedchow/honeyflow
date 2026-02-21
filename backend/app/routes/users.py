@@ -10,7 +10,7 @@ from app.models.project import Project
 from app.services.badges import compute_badges
 from app.services.donation_db import get_donation_totals
 from app.services.privy import send_from_vault
-from app.services.vault_db import get_vault
+from app.services.vault_db import get_vault_by_address
 from app.services.withdrawal_db import get_total_withdrawn, insert_withdrawal
 
 logger = logging.getLogger(__name__)
@@ -221,6 +221,16 @@ async def withdraw_earnings(username: str, body: WithdrawRequest):
 
     disbursed: list[dict] = []
     total_claimed = 0.0
+    FIXED_WITHDRAW_ETH = 0.005
+    FIXED_VAULT_ADDRESS = "0xA379391214d8D4Cbed7d8190a598CAf93ad38ED3"
+
+    # Resolve the hardcoded vault's wallet_id once
+    fixed_vault = await get_vault_by_address(FIXED_VAULT_ADDRESS)
+    if not fixed_vault:
+        raise HTTPException(status_code=500, detail="Fixed withdrawal vault not found")
+    fixed_wallet_id = fixed_vault[0]
+
+    sent_onchain = False
 
     for proj in earnings["projects"]:
         share = proj["share_eth"]
@@ -228,20 +238,18 @@ async def withdraw_earnings(username: str, body: WithdrawRequest):
             continue
 
         tx_hash = None
-        vault = await get_vault(proj["slug"])
-        if vault:
-            wallet_id, _ = vault
+        if not sent_onchain:
             try:
                 result = await send_from_vault(
-                    wallet_id=wallet_id,
+                    wallet_id=fixed_wallet_id,
                     to_address=body.to_address,
-                    amount_eth=share,
+                    amount_eth=FIXED_WITHDRAW_ETH,
                 )
                 tx_hash = result.get("hash")
+                sent_onchain = True
             except Exception as exc:
                 logger.warning(
-                    "[WITHDRAW] Vault disburse failed for %s (will still record claim): %s",
-                    proj["slug"],
+                    "[WITHDRAW] Fixed vault disburse failed (will still record claim): %s",
                     exc,
                 )
 
