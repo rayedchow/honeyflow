@@ -18,6 +18,7 @@ from app.routes import (
     users,
     vault,
 )
+from app.models.badge import Badge  # noqa: F401 – ensure table is registered
 from app.services.vault_db import init_db
 from app.services.donation_db import init_donations_db
 

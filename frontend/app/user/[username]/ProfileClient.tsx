@@ -4,14 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { typeConfig } from "@/components/ui/TypeIcons";
 import EthIcon from "@/components/ui/EthIcon";
-import type { UserProfile, UserProjectContribution } from "@/lib/types";
+import BadgeIcon from "@/components/ui/BadgeIcons";
+import type { BadgeCategory, BadgeInfo, UserProfile, UserProjectContribution } from "@/lib/types";
 
 const ETH_TO_USD = 2500;
-
-function fmtCurrency(usd: number, showUsd: boolean) {
-  if (showUsd) return `$${usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-  return `${(usd / ETH_TO_USD).toFixed(4)} ETH`;
-}
 
 function ContributionRow({
   project,
@@ -63,8 +59,53 @@ function ContributionRow({
   );
 }
 
+const BADGE_CATEGORIES: { key: BadgeCategory; label: string; description: string }[] = [
+  { key: "contributor",    label: "Contributor",    description: "Earned by contributing code and building in the ecosystem" },
+  { key: "philanthropist", label: "Philanthropist", description: "Earned by funding open-source projects with donations" },
+  { key: "juror",          label: "Juror",          description: "Earned by serving as a human juror on AI attribution decisions" },
+  { key: "community",      label: "Community",      description: "Earned by giving feedback on AI funding decisions" },
+];
+
+function BadgeCard({ badge }: { badge: BadgeInfo }) {
+  return (
+    <div
+      className={`border bg-agentbase-card p-4 flex flex-col items-center gap-3 transition-colors ${
+        badge.earned
+          ? "border-agentbase-border hover:bg-agentbase-cardHover"
+          : "border-agentbase-border/50 opacity-50"
+      }`}
+    >
+      <BadgeIcon
+        badgeKey={badge.key}
+        category={badge.category}
+        tier={badge.tier}
+        earned={badge.earned}
+      />
+      <div className="text-center">
+        <p
+          className={`text-[12px] font-bold tracking-tight ${
+            badge.earned ? "text-agentbase-text" : "text-agentbase-muted"
+          }`}
+        >
+          {badge.name}
+        </p>
+        <p className="text-[10px] text-agentbase-muted leading-snug mt-0.5">
+          {badge.description}
+        </p>
+        {!badge.earned && (
+          <p className="text-[9px] font-mono uppercase tracking-widest text-agentbase-placeholder mt-1.5">
+            Locked
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ProfileClient({ profile }: { profile: UserProfile }) {
   const [showUsd, setShowUsd] = useState(false);
+  const badges = profile.badges ?? [];
+  const earnedCount = badges.filter((b) => b.earned).length;
 
   const totalShare = showUsd
     ? `$${profile.total_attributed_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
@@ -236,19 +277,60 @@ export default function ProfileClient({ profile }: { profile: UserProfile }) {
             </div>
           </div>
 
-          {/* Badges */}
+          {/* Quick badge count */}
           <div className="flex flex-wrap gap-2 mt-4">
-            <span className="bg-agentbase-badgeBg text-agentbase-badgeText text-[10px] font-bold tracking-widest uppercase px-3 py-1">
-              Contributor
-            </span>
-            {profile.total_projects >= 3 && (
+            {earnedCount > 0 && (
               <span className="bg-agentbase-accent/10 text-agentbase-accent text-[10px] font-bold tracking-widest uppercase px-3 py-1">
-                Multi-Project
+                {earnedCount} Badge{earnedCount !== 1 ? "s" : ""} Earned
+              </span>
+            )}
+            {badges.some((b) => b.earned && b.tier === 3) && (
+              <span className="bg-agentbase-yellow/15 text-agentbase-yellow text-[10px] font-bold tracking-widest uppercase px-3 py-1">
+                Gold Tier
               </span>
             )}
           </div>
         </aside>
       </div>
+
+      {/* ── Badges section (full width) ──────────────────── */}
+      {badges.length > 0 && (
+        <section className="mt-12">
+          <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-6">
+            Badges
+          </p>
+
+          <div className="space-y-8">
+            {BADGE_CATEGORIES.map(({ key, label, description }) => {
+              const catBadges = badges.filter((b) => b.category === key);
+              if (catBadges.length === 0) return null;
+              const catEarned = catBadges.filter((b) => b.earned).length;
+
+              return (
+                <div key={key}>
+                  <div className="flex items-baseline gap-3 mb-4">
+                    <h3 className="text-lg font-bold tracking-tight text-agentbase-text">
+                      {label}
+                    </h3>
+                    <span className="text-[10px] font-mono text-agentbase-muted uppercase tracking-widest">
+                      {catEarned}/{catBadges.length}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-agentbase-muted mb-4">
+                    {description}
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {catBadges.map((badge) => (
+                      <BadgeCard key={badge.key} badge={badge} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

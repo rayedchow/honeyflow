@@ -129,12 +129,24 @@ export interface UserProjectContribution {
   contributors: number;
 }
 
+export type BadgeCategory = "contributor" | "philanthropist" | "juror" | "community";
+
+export interface BadgeInfo {
+  key: string;
+  name: string;
+  category: BadgeCategory;
+  description: string;
+  tier: number;
+  earned: boolean;
+}
+
 export interface UserProfile {
   username: string;
   projects: UserProjectContribution[];
   total_projects: number;
   total_attributed_usd: number;
   total_attributed_eth: number;
+  badges: BadgeInfo[];
 }
 
 export interface Donation {
