@@ -23,6 +23,7 @@ from app.routes import (
 from app.models.badge import Badge  # noqa: F401 – ensure table is registered
 from app.services.vault_db import init_db
 from app.services.donation_db import init_donations_db
+from app.services.withdrawal_db import init_withdrawals_db
 
 
 def _setup_logging() -> None:
@@ -44,6 +45,8 @@ async def lifespan(app: FastAPI):
     log.info("Vault table ready.")
     await init_donations_db()
     log.info("Donations table ready.")
+    await init_withdrawals_db()
+    log.info("Withdrawals table ready.")
     yield
     from app.services.screenshot import close_browser
     log.info("Closing Playwright browser...")
