@@ -448,9 +448,9 @@ export default function JuryClient() {
                     : "All dependencies (AI estimate)"}
               </p>
               <div>
-                {current.peers.map((peer) => (
+                {current.peers.map((peer, i) => (
                   <PeerBar
-                    key={peer.name}
+                    key={`${peer.name}-${i}`}
                     peer={peer}
                     maxPct={maxPeerPct}
                   />
