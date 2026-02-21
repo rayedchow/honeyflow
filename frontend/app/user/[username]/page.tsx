@@ -23,7 +23,8 @@ async function fetchProfile(username: string) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { username } = await params;
+  const { username: raw } = await params;
+  const username = decodeURIComponent(raw);
   return {
     title: `${username} — HoneyFlow`,
     description: `View ${username}'s contributions and funding on HoneyFlow`,
@@ -31,7 +32,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function UserProfilePage({ params }: Props) {
-  const { username } = await params;
+  const { username: raw } = await params;
+  const username = decodeURIComponent(raw);
   const profile = await fetchProfile(username);
   if (!profile) notFound();
 
