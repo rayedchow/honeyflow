@@ -5,6 +5,7 @@ import type {
   ProjectListResponse,
   SubmitJuryAnswer,
   SubmitJuryAnswersResponse,
+  UserProfile,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -120,6 +121,14 @@ export function streamTrace(
     });
 
   return controller;
+}
+
+/* ── Users ────────────────────────────────────────────── */
+
+export async function fetchUserProfile(username: string): Promise<UserProfile> {
+  const res = await fetch(`${API_BASE}/users/${encodeURIComponent(username)}`);
+  if (!res.ok) throw new Error(`Failed to fetch user profile: ${res.status}`);
+  return res.json();
 }
 
 /* ── Donations ─────────────────────────────────────────── */

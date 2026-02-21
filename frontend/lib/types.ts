@@ -114,6 +114,29 @@ export interface SubmitJuryAnswersResponse {
   reward_eth: number;
 }
 
+export interface UserProjectContribution {
+  slug: string;
+  name: string;
+  type: ProjectType;
+  category: string;
+  summary: string;
+  source_url: string;
+  raised_usd: number;
+  raised_eth: number;
+  percentage: number;
+  share_usd: number;
+  share_eth: number;
+  contributors: number;
+}
+
+export interface UserProfile {
+  username: string;
+  projects: UserProjectContribution[];
+  total_projects: number;
+  total_attributed_usd: number;
+  total_attributed_eth: number;
+}
+
 export interface Donation {
   id: number;
   project_id: string;

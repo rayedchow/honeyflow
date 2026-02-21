@@ -15,6 +15,7 @@ from app.routes import (
     package_graph,
     projects,
     stream,
+    users,
     vault,
 )
 from app.services.vault_db import init_db
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(projects.router)
     app.include_router(jury.router)
     app.include_router(stream.router)
+    app.include_router(users.router)
     app.include_router(vault.router)
 
     @app.get("/health")

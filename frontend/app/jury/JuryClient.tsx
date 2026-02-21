@@ -37,15 +37,16 @@ function PeerBar({ peer, maxPct }: { peer: JuryPeer; maxPct: number }) {
   return (
     <div className="flex items-center gap-3 py-1.5">
       <div className="shrink-0">
-        <span
-          className={`block whitespace-nowrap text-sm ${
+        <Link
+          href={`/user/${encodeURIComponent(peer.name)}`}
+          className={`block whitespace-nowrap text-sm hover:text-agentbase-accent transition-colors ${
             isSubject
               ? "font-semibold text-agentbase-text"
               : "text-agentbase-muted"
           }`}
         >
           {peer.name}
-        </span>
+        </Link>
         {peer.detail && (
           <span className="block whitespace-nowrap text-[11px] text-agentbase-muted/70">
             {peer.detail}
@@ -393,7 +394,7 @@ export default function JuryClient() {
             </h2>
             {current.subject_summary && (
               <p className="mt-2 text-sm text-agentbase-muted">
-                {current.subject_name}: <span className="text-agentbase-text">{current.subject_summary}</span>
+                <Link href={`/user/${encodeURIComponent(current.subject_name)}`} className="hover:text-agentbase-accent transition-colors">{current.subject_name}</Link>: <span className="text-agentbase-text">{current.subject_summary}</span>
               </p>
             )}
           </div>
@@ -402,7 +403,7 @@ export default function JuryClient() {
           {current.code_samples && current.code_samples.length > 0 && (
             <div className="px-6 py-5 border-b border-agentbase-border">
               <p className="text-xs text-agentbase-muted font-medium mb-3">
-                Recent work by {current.subject_name}
+                Recent work by <Link href={`/user/${encodeURIComponent(current.subject_name)}`} className="hover:text-agentbase-accent transition-colors">{current.subject_name}</Link>
               </p>
               <div className="space-y-3">
                 {current.code_samples
@@ -447,7 +448,7 @@ export default function JuryClient() {
           {/* ·· Your answer ·· */}
           <div className="px-6 py-6 border-b border-agentbase-border">
             <p className="text-xs text-agentbase-muted font-medium mb-4">
-              Your estimate for <span className="text-agentbase-text font-semibold">{current.subject_name}</span>
+              Your estimate for <Link href={`/user/${encodeURIComponent(current.subject_name)}`} className="text-agentbase-text font-semibold hover:text-agentbase-accent transition-colors">{current.subject_name}</Link>
             </p>
 
             <div className="flex items-center gap-4">

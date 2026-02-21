@@ -338,9 +338,10 @@ export default function ProjectDetailClient({
             </p>
             <div className="border border-agentbase-border bg-agentbase-card divide-y divide-agentbase-border">
               {project.top_contributors.map((c) => (
-                <div
+                <Link
                   key={c.name}
-                  className="px-6 py-3 flex items-center justify-between"
+                  href={`/user/${encodeURIComponent(c.name)}`}
+                  className="px-6 py-3 flex items-center justify-between hover:bg-agentbase-cardHover transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-7 h-7 border border-agentbase-border flex items-center justify-center text-agentbase-muted shrink-0">
@@ -358,14 +359,14 @@ export default function ProjectDetailClient({
                         <circle cx="12" cy="7" r="4" />
                       </svg>
                     </div>
-                    <span className="text-sm font-medium text-agentbase-text">
+                    <span className="text-sm font-medium text-agentbase-text hover:text-agentbase-accent transition-colors">
                       {c.name}
                     </span>
                   </div>
                   <span className="text-[11px] font-mono font-bold text-agentbase-muted">
                     {c.percentage}
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           </section>
