@@ -6,13 +6,12 @@ and assembles a weighted citation attribution graph.
 
 Graph structure (mirrors GitHub graph):
   PAPER (root)
-  ├── "Original Contribution" (CITED_WORK, weight=original_frac)
-  │   └── AUTHOR leaves (the paper's own authors)
+  ├── AUTHOR leaves (the paper's own authors, weight=original_frac)
   ├── Citation A (CITED_WORK, weight=cited_frac * score_A)
   │   └── AUTHOR leaves (that citation's authors)
   └── Citation B (CITED_WORK, weight=cited_frac * score_B)
-      ├── "Original Contribution" → AUTHOR leaves  (if recursed)
-      └── Sub-Citation → AUTHOR leaves             (if recursed)
+      ├── AUTHOR leaves  (if recursed)
+      └── Sub-Citation → AUTHOR leaves  (if recursed)
 
 All leaf nodes are AUTHOR type. Outgoing edges from each node sum to 1.0.
 """
@@ -124,11 +123,8 @@ class CitationGraphBuilder:
         except Exception as exc:
             logger.warning("[CIT] Analysis failed for %s: %s", bare_id, exc)
             if is_root:
-                # Root failure means we cannot build a meaningful graph. Surface
-                # this to the API caller rather than returning a single empty node.
                 raise
-            original_id = self._add_original_contribution(bare_id, node_id, 1.0)
-            await self._add_author_leaves(bare_id, original_id)
+            await self._add_author_leaves(bare_id, node_id)
 
         return node_id
 
@@ -213,11 +209,10 @@ class CitationGraphBuilder:
 
         if not citations:
             logger.info(
-                "[CIT] No citations found for %s, 100%% to original contribution",
+                "[CIT] No citations found for %s, 100%% to authors",
                 arxiv_id,
             )
-            original_id = self._add_original_contribution(arxiv_id, node_id, 1.0)
-            await self._add_author_leaves(arxiv_id, original_id, metadata=metadata)
+            await self._add_author_leaves(arxiv_id, node_id, metadata=metadata)
             return
 
         logger.info(
@@ -234,8 +229,7 @@ class CitationGraphBuilder:
         original_frac = 0.50
         cited_frac = 0.50
 
-        original_id = self._add_original_contribution(arxiv_id, node_id, original_frac)
-        await self._add_author_leaves(arxiv_id, original_id, metadata=metadata)
+        await self._add_author_leaves(arxiv_id, node_id, metadata=metadata, budget=original_frac)
 
         logger.info(
             "[CIT] Phase 3: adding top citation children (budget=%.0f%%)",
@@ -277,10 +271,7 @@ class CitationGraphBuilder:
                 original_frac = 0.60
                 cited_frac = 0.40
 
-                original_id = self._add_original_contribution(
-                    arxiv_id, node_id, original_frac
-                )
-                await self._add_author_leaves(arxiv_id, original_id, metadata=metadata)
+                await self._add_author_leaves(arxiv_id, node_id, metadata=metadata, budget=original_frac)
                 await self._add_citation_children(
                     node_id,
                     citations,
@@ -290,45 +281,7 @@ class CitationGraphBuilder:
                 )
                 return
 
-        original_id = self._add_original_contribution(arxiv_id, node_id, 1.0)
-        await self._add_author_leaves(arxiv_id, original_id, metadata=metadata)
-
-    # ------------------------------------------------------------------
-    # "Original Contribution" intermediate node
-    # ------------------------------------------------------------------
-
-    def _add_original_contribution(
-        self,
-        arxiv_id: str,
-        parent_id: str,
-        weight: float,
-    ) -> str:
-        """Add an 'Original Contribution' intermediate CITED_WORK node."""
-        original_id = "cited:original:{}".format(arxiv_id)
-
-        counter = 0
-        base = original_id
-        while any(n.id == original_id for n in self.nodes):
-            counter += 1
-            original_id = "{}:{}".format(base, counter)
-
-        self.nodes.append(
-            CitationNode(
-                id=original_id,
-                type=CitationNodeType.CITED_WORK,
-                label="Original Contribution",
-            )
-        )
-        self.edges.append(
-            CitationEdge(
-                source=parent_id,
-                target=original_id,
-                weight=round(weight, 4),
-                label="{}%".format(round(weight * 100, 1)),
-                metadata={"edge_kind": "original_contribution"},
-            )
-        )
-        return original_id
+        await self._add_author_leaves(arxiv_id, node_id, metadata=metadata)
 
     # ------------------------------------------------------------------
     # Build Citation objects from Semantic Scholar references
@@ -552,8 +505,14 @@ class CitationGraphBuilder:
         arxiv_id: str,
         parent_id: str,
         metadata: Optional[Dict[str, Any]] = None,
+        budget: float = 1.0,
     ) -> None:
-        """Add AUTHOR leaf nodes by fetching metadata from arXiv."""
+        """Add AUTHOR leaf nodes by fetching metadata from arXiv.
+
+        budget scales all author weights so they sum to that value instead
+        of 1.0, allowing authors to coexist alongside citation edges under
+        the same parent.
+        """
         if metadata is None:
             try:
                 metadata = await self._fetch_metadata_with_fallback(arxiv_id)
@@ -562,10 +521,13 @@ class CitationGraphBuilder:
 
         authors = metadata.get("authors", [])
         names = [a["name"] if isinstance(a, dict) else str(a) for a in authors]
-        self._add_authors_from_list(parent_id, names)
+        self._add_authors_from_list(parent_id, names, budget=budget)
 
-    def _add_authors_from_list(self, parent_id: str, authors: List[str]) -> None:
-        """Add AUTHOR leaf nodes from a plain name list."""
+    def _add_authors_from_list(self, parent_id: str, authors: List[str], budget: float = 1.0) -> None:
+        """Add AUTHOR leaf nodes from a plain name list.
+
+        budget scales all author weights so they sum to that value.
+        """
         if not authors:
             return
 
@@ -579,7 +541,7 @@ class CitationGraphBuilder:
             if not name:
                 continue
 
-            weight = self._author_weight(i, total)
+            weight = round(self._author_weight(i, total) * budget, 4)
             if weight < 0.001:
                 continue
 
@@ -711,8 +673,6 @@ class CitationGraphBuilder:
         if not node_id.startswith("cited:"):
             return None
         rest = node_id[6:]
-        if rest.startswith("original:"):
-            rest = rest[9:]
         rest = rest.split(":")[0]
         if rest and any(c.isdigit() for c in rest) and "." in rest:
             return rest

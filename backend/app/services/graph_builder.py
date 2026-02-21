@@ -48,6 +48,7 @@ class GraphBuilder:
     async def build(self, repo_url: str) -> Graph:
         """Build the full graph starting from a repo URL."""
         from app.services.jury_priors import load_priors
+
         try:
             self._human_priors = await load_priors()
         except Exception:
@@ -219,24 +220,7 @@ class GraphBuilder:
             "tech_stack": repo_analysis.get("tech_stack", []),
         }
 
-        direct_code_id = "bow:direct_code:{}/{}".format(owner, repo)
-        self.nodes.append(
-            Node(
-                id=direct_code_id,
-                type=NodeType.BODY_OF_WORK,
-                label="Direct Code",
-            )
-        )
-        self.edges.append(
-            Edge(
-                source=node_id,
-                target=direct_code_id,
-                weight=round(direct_frac, 4),
-                label="{}%".format(round(direct_frac * 100, 1)),
-            )
-        )
-
-        await self._add_contributor_leaves(owner, repo, direct_code_id)
+        await self._add_contributor_leaves(owner, repo, node_id, budget=direct_frac)
 
         if dep_names and deps_frac > 0:
             logger.info(
@@ -268,15 +252,6 @@ class GraphBuilder:
         depth: int,
     ) -> None:
         """Lightweight path for dependencies: contributor stats + API manifest fetch."""
-        direct_code_id = "bow:direct_code:{}/{}".format(owner, repo)
-        self.nodes.append(
-            Node(
-                id=direct_code_id,
-                type=NodeType.BODY_OF_WORK,
-                label="Direct Code",
-            )
-        )
-
         metadata = None
         try:
             metadata = await fetch_repo_metadata(owner, repo)
@@ -300,24 +275,13 @@ class GraphBuilder:
                         ecosystem,
                     )
                     dep_importance = self._heuristic_dep_ranking(prod_deps, {})
-                    self.edges.append(
-                        Edge(
-                            source=node_id,
-                            target=direct_code_id,
-                            weight=0.6,
-                            label="60%",
-                        )
-                    )
                     await self._add_dependency_children(
                         node_id, ecosystem, prod_deps, dep_importance, 0.4, depth
                     )
-                    await self._add_contributor_leaves(owner, repo, direct_code_id)
+                    await self._add_contributor_leaves(owner, repo, node_id, budget=0.6)
                     return
 
-        self.edges.append(
-            Edge(source=node_id, target=direct_code_id, weight=1.0, label="100%")
-        )
-        await self._add_contributor_leaves(owner, repo, direct_code_id)
+        await self._add_contributor_leaves(owner, repo, node_id)
 
     # ------------------------------------------------------------------
     # Remote manifest fetch for lightweight path
@@ -669,8 +633,6 @@ class GraphBuilder:
         if not node_id.startswith("bow:"):
             return None
         rest = node_id[4:]
-        if rest.startswith("direct_code:"):
-            rest = rest[len("direct_code:") :]
         if "/" not in rest:
             return None
         slash_idx = rest.index("/")
@@ -777,8 +739,14 @@ class GraphBuilder:
         owner: str,
         repo: str,
         parent_id: str,
+        budget: float = 1.0,
     ) -> None:
-        """Fetch contributor stats and add CONTRIBUTOR leaf nodes."""
+        """Fetch contributor stats and add CONTRIBUTOR leaf nodes.
+
+        budget scales all contributor weights so they sum to that value
+        instead of 1.0, allowing contributors to coexist alongside
+        dependency edges under the same parent.
+        """
         try:
             stats = await fetch_contributor_stats(owner, repo)
         except Exception:
@@ -792,6 +760,7 @@ class GraphBuilder:
         scores = self._score_contributors(top)
 
         from app.services.jury_priors import apply_priors_to_scores
+
         if self._human_priors:
             scores = apply_priors_to_scores(scores, "contributor", self._human_priors)
 
@@ -801,7 +770,7 @@ class GraphBuilder:
 
         logger.info("[GRAPH] Adding %d contributors to %s", len(scores), parent_id)
         for login, raw_score in scores.items():
-            weight = round(raw_score / total, 4)
+            weight = round((raw_score / total) * budget, 4)
             if weight < 0.001:
                 continue
 

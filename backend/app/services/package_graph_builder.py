@@ -237,28 +237,10 @@ class PackageGraphBuilder:
             "github_url": github_url,
         }
 
-        norm = self._norm(package_name, ecosystem)
-        direct_code_id = "bow:direct_code:{}:{}".format(ecosystem, norm)
-        self.nodes.append(
-            Node(
-                id=direct_code_id,
-                type=NodeType.BODY_OF_WORK,
-                label="Direct Code",
-            )
-        )
-        self.edges.append(
-            Edge(
-                source=node_id,
-                target=direct_code_id,
-                weight=round(direct_frac, 4),
-                label="{}%".format(round(direct_frac * 100, 1)),
-            )
-        )
-
         if github_url:
             try:
                 owner, repo = parse_repo_owner_and_name(github_url)
-                await self._add_contributor_leaves(owner, repo, direct_code_id)
+                await self._add_contributor_leaves(owner, repo, node_id, budget=direct_frac)
             except Exception as exc:
                 logger.warning(
                     "[PKGGRAPH] Contributors failed for %s: %s", package_name, exc
@@ -287,16 +269,6 @@ class PackageGraphBuilder:
         depth: int,
     ) -> None:
         """Lightweight path for dependencies: registry metadata + contributors."""
-        norm = self._norm(package_name, ecosystem)
-        direct_code_id = "bow:direct_code:{}:{}".format(ecosystem, norm)
-        self.nodes.append(
-            Node(
-                id=direct_code_id,
-                type=NodeType.BODY_OF_WORK,
-                label="Direct Code",
-            )
-        )
-
         pkg_info: Optional[PackageInfo] = None
         try:
             pkg_info = await fetch_package_info(package_name, ecosystem)
@@ -318,27 +290,16 @@ class PackageGraphBuilder:
                     len(prod_deps),
                 )
                 dep_importance = self._heuristic_dep_ranking(prod_deps)
-                self.edges.append(
-                    Edge(
-                        source=node_id,
-                        target=direct_code_id,
-                        weight=0.6,
-                        label="60%",
-                    )
-                )
                 await self._add_dependency_children(
                     node_id, ecosystem, prod_deps, dep_importance, 0.4, depth
                 )
                 await self._add_contributors_for_package(
-                    package_name, ecosystem, pkg_info, direct_code_id
+                    package_name, ecosystem, pkg_info, node_id, budget=0.6
                 )
                 return
 
-        self.edges.append(
-            Edge(source=node_id, target=direct_code_id, weight=1.0, label="100%")
-        )
         await self._add_contributors_for_package(
-            package_name, ecosystem, pkg_info, direct_code_id
+            package_name, ecosystem, pkg_info, node_id
         )
 
     async def _add_contributors_for_package(
@@ -347,6 +308,7 @@ class PackageGraphBuilder:
         ecosystem: str,
         pkg_info: Optional[PackageInfo],
         parent_id: str,
+        budget: float = 1.0,
     ) -> None:
         """Resolve a package to GitHub and add contributor leaves."""
         github_url = (pkg_info.github_url if pkg_info else None)
@@ -355,7 +317,7 @@ class PackageGraphBuilder:
         if github_url:
             try:
                 owner, repo = parse_repo_owner_and_name(github_url)
-                await self._add_contributor_leaves(owner, repo, parent_id)
+                await self._add_contributor_leaves(owner, repo, parent_id, budget=budget)
             except Exception:
                 pass
 
@@ -612,14 +574,11 @@ class PackageGraphBuilder:
 
         Handles formats like:
           bow:npm:express
-          bow:direct_code:pypi:flask
           bow:npm:@babel/core:1  (with collision counter)
         """
         if not node_id.startswith("bow:"):
             return None
         rest = node_id[4:]
-        if rest.startswith("direct_code:"):
-            rest = rest[len("direct_code:"):]
 
         for eco in ("npm", "pypi"):
             prefix = eco + ":"
@@ -710,8 +669,14 @@ class PackageGraphBuilder:
         owner: str,
         repo: str,
         parent_id: str,
+        budget: float = 1.0,
     ) -> None:
-        """Fetch contributor stats and add CONTRIBUTOR leaf nodes."""
+        """Fetch contributor stats and add CONTRIBUTOR leaf nodes.
+
+        budget scales all contributor weights so they sum to that value
+        instead of 1.0, allowing contributors to coexist alongside
+        dependency edges under the same parent.
+        """
         try:
             stats = await fetch_contributor_stats(owner, repo)
         except Exception:
@@ -736,7 +701,7 @@ class PackageGraphBuilder:
             "[PKGGRAPH] Adding %d contributors to %s", len(scores), parent_id
         )
         for login, raw_score in scores.items():
-            weight = round(raw_score / total, 4)
+            weight = round((raw_score / total) * budget, 4)
             if weight < 0.001:
                 continue
 

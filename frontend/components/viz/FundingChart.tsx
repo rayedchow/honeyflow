@@ -52,21 +52,10 @@ function buildDemoGraph(project: Project): { nodes: GNode[]; edges: GEdge[] } {
   const rootType = TYPE_TO_ROOT[project.type] ?? "REPO";
   nodes.push({ id: "root", type: rootType, label: project.name, ...zero });
 
-  // Direct code node
-  nodes.push({ id: "direct-code", type: "BODY_OF_WORK", label: "Direct Code", ...zero });
-
   const depCount = project.dependencies.length;
   const directWeight = depCount > 0 ? 0.6 : 1.0;
   const depsWeight = depCount > 0 ? 0.4 : 0;
 
-  edges.push({
-    source: "root",
-    target: "direct-code",
-    weight: directWeight,
-    label: `${Math.round(directWeight * 100)}%`,
-  });
-
-  // Contributors on direct code
   const totalPct = project.topContributors.reduce(
     (s, c) => s + parseFloat(c.percentage),
     0
@@ -74,9 +63,9 @@ function buildDemoGraph(project: Project): { nodes: GNode[]; edges: GEdge[] } {
   project.topContributors.forEach((c) => {
     const id = `contrib:${c.name}`;
     nodes.push({ id, type: "CONTRIBUTOR", label: c.name, ...zero });
-    const w = parseFloat(c.percentage) / totalPct;
+    const w = (parseFloat(c.percentage) / totalPct) * directWeight;
     edges.push({
-      source: "direct-code",
+      source: "root",
       target: id,
       weight: w,
       label: c.percentage,

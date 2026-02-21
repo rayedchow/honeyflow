@@ -308,7 +308,6 @@ async def _run_trace(
             deps = list(dict.fromkeys(
                 n["label"] for n in graph_dict["nodes"]
                 if n["type"] in ("PACKAGE", "BODY_OF_WORK")
-                and n["label"] != "Direct Code"
             ))[:20]
 
             return {
@@ -373,7 +372,6 @@ async def _run_trace(
             deps = list(dict.fromkeys(
                 n["label"] for n in graph_dict["nodes"]
                 if n["type"] in ("PACKAGE", "BODY_OF_WORK")
-                and n["label"] != "Direct Code"
             ))[:20]
 
             return {

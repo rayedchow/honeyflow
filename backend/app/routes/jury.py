@@ -63,8 +63,6 @@ def _question_type(
         return "contributor"
     if source_type in ("PAPER", "CITED_WORK") and target_type == "CITED_WORK":
         return "citation"
-    if target_label == "Direct Code":
-        return ""
     if target_type in ("BODY_OF_WORK", "CITED_WORK"):
         return "dependency"
     return ""
@@ -289,13 +287,11 @@ def _repo_url_from_node_id(node_id: str) -> Optional[str]:
         rest = node_id[len("repo:") :]
     elif node_id.startswith("bow:"):
         rest = node_id[len("bow:") :]
-        if rest.startswith("direct_code:"):
-            rest = rest[len("direct_code:") :]
     if not rest or "/" not in rest:
         return None
     owner, repo = rest.split("/", 1)
     repo = repo.split(":")[0]
-    if owner in {"npm", "pypi", "crates", "go", "direct_code", "original"}:
+    if owner in {"npm", "pypi", "crates", "go"}:
         return None
     if not owner or not repo:
         return None
