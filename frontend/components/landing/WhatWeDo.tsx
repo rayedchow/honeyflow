@@ -69,7 +69,7 @@ function lerp(a: number, b: number, t: number) {
 function PixelPattern({ colorIndex, hovered }: { colorIndex: number; hovered: boolean }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animRef = useRef<number>(0);
-    const colorMixRef = useRef(0);
+    const colorMixRef = useRef(1);
     const hoveredRef = useRef(hovered);
     hoveredRef.current = hovered;
 
@@ -113,7 +113,7 @@ function PixelPattern({ colorIndex, hovered }: { colorIndex: number; hovered: bo
             ctx.clearRect(0, 0, rect.width, rect.height);
 
 
-            const target = hoveredRef.current ? 1 : 0;
+            const target = hoveredRef.current ? 1 : 0.7;
             colorMixRef.current += (target - colorMixRef.current) * 0.08;
             const mix = colorMixRef.current;
 

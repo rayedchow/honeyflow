@@ -24,14 +24,14 @@ export default function WalletButton() {
 
   if (address) {
     return (
-      <div className="relative group">
+      <div className="relative group pb-2 -mb-2">
         <button className="inline-flex items-center gap-2 px-4 py-2 border border-agentbase-border bg-agentbase-card font-mono text-xs tracking-wide rounded-full hover:bg-agentbase-cardHover transition-colors text-agentbase-text">
           <span className="w-1.5 h-1.5 rounded-full bg-agentbase-accent" />
           {truncateAddress(address)}
         </button>
         <button
-          onClick={disconnect}
-          className="absolute top-full right-0 mt-1 px-3 py-1.5 text-[10px] font-mono tracking-wider uppercase bg-agentbase-invertedBg text-agentbase-invertedText rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
+          onClick={() => disconnect()}
+          className="absolute top-full right-0 mt-0 px-3 py-1.5 text-[10px] font-mono tracking-wider uppercase bg-agentbase-invertedBg text-agentbase-invertedText rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity whitespace-nowrap z-50"
         >
           Disconnect
         </button>
