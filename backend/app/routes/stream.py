@@ -20,7 +20,7 @@ from app.services.citation_graph_builder import build_citation_graph
 from app.services.github import parse_repo_owner_and_name
 from app.services.graph_builder import build_contribution_graph
 from app.services.package_graph_builder import build_package_graph
-from app.services.screenshot import COVERS_DIR, take_project_screenshot
+from app.services.screenshot import take_project_screenshot
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +219,7 @@ async def _upsert_project(session, result: dict, allow_create: bool) -> Project:
         defer(Project.attribution),
         defer(Project.dependencies),
         defer(Project.top_contributors),
+        defer(Project.cover_image_data),
     )
 
     existing = await session.scalar(
@@ -253,7 +254,9 @@ async def _upsert_project(session, result: dict, allow_create: bool) -> Project:
     slug = _slugify(result["name"]) or "project"
     base_slug = slug
     suffix = 1
-    while await session.scalar(select(Project.id).where(Project.slug == slug)) is not None:
+    while (
+        await session.scalar(select(Project.id).where(Project.slug == slug)) is not None
+    ):
         suffix += 1
         slug = "{}-{}".format(base_slug, suffix)
 
@@ -291,8 +294,12 @@ async def _save_project(result: dict) -> dict:
 
     input_nodes = len(result.get("graph_data", {}).get("nodes", []))
     input_edges = len(result.get("graph_data", {}).get("edges", []))
-    logger.info("DB save starting: %s — %d nodes/%d edges",
-                result.get("name"), input_nodes, input_edges)
+    logger.info(
+        "DB save starting: %s — %d nodes/%d edges",
+        result.get("name"),
+        input_nodes,
+        input_edges,
+    )
 
     last_exc: Exception | None = None
     for attempt in range(3):
@@ -307,23 +314,34 @@ async def _save_project(result: dict) -> dict:
                     saved_nodes = len(saved.get("graph_data", {}).get("nodes", []))
                     logger.info(
                         "DB save OK: %s — input %d nodes/%d edges, saved %d nodes",
-                        result.get("name"), input_nodes, input_edges, saved_nodes,
+                        result.get("name"),
+                        input_nodes,
+                        input_edges,
+                        saved_nodes,
                     )
                     return saved
             except IntegrityError:
                 try:
                     async with session_scope() as session:
-                        project = await _upsert_project(session, result, allow_create=False)
+                        project = await _upsert_project(
+                            session, result, allow_create=False
+                        )
                         return _project_to_dict(project)
                 except Exception as exc:
                     last_exc = exc
-                    logger.warning("DB save (integrity retry) attempt %d failed: %s [%s]",
-                                   attempt + 1, type(exc).__name__, exc)
+                    logger.warning(
+                        "DB save (integrity retry) attempt %d failed: %s [%s]",
+                        attempt + 1,
+                        type(exc).__name__,
+                        exc,
+                    )
             except Exception as exc:
                 last_exc = exc
                 logger.warning(
                     "DB save attempt %d failed: %s [%s]",
-                    attempt + 1, type(exc).__name__, exc,
+                    attempt + 1,
+                    type(exc).__name__,
+                    exc,
                 )
         if attempt < 2:
             await asyncio.sleep(2 * (attempt + 1))
@@ -333,30 +351,31 @@ async def _save_project(result: dict) -> dict:
 async def _apply_cover_image(
     screenshot_task: asyncio.Task,
     actual_slug: str,
-    preliminary_slug: str,
 ) -> str | None:
-    """Await a screenshot task, rename file if slug changed, update DB.
+    """Await a screenshot task, persist image bytes to DB, update URL.
 
     Returns the cover_url on success, None on failure.
     """
     try:
-        cover_url = await asyncio.wait_for(screenshot_task, timeout=60.0)
-        if not cover_url:
+        cover_data = await asyncio.wait_for(screenshot_task, timeout=60.0)
+        if not cover_data:
             return None
 
-        # Rename file if the DB-assigned slug differs from the pre-computed one
-        if actual_slug != preliminary_slug:
-            old_path = COVERS_DIR / f"{preliminary_slug}.png"
-            new_path = COVERS_DIR / f"{actual_slug}.png"
-            if old_path.exists():
-                old_path.rename(new_path)
-            cover_url = f"/static/covers/{actual_slug}.png"
+        cover_url = f"/projects/{actual_slug}/cover"
 
         async with session_scope() as session:
             project = await session.scalar(
-                select(Project).where(Project.slug == actual_slug)
+                select(Project)
+                .where(Project.slug == actual_slug)
+                .options(
+                    defer(Project.graph_data),
+                    defer(Project.attribution),
+                    defer(Project.dependencies),
+                    defer(Project.top_contributors),
+                )
             )
             if project:
+                project.cover_image_data = cover_data
                 project.cover_image_url = cover_url
                 logger.info("Cover image updated for %s: %s", actual_slug, cover_url)
         return cover_url
@@ -388,16 +407,21 @@ async def _run_trace(
             graph_dict = graph.model_dump()
             name = _extract_name_from_url(url, trace_type)
 
-            sorted_contribs = sorted(attribution.items(), key=lambda x: x[1], reverse=True)[:10]
+            sorted_contribs = sorted(
+                attribution.items(), key=lambda x: x[1], reverse=True
+            )[:10]
             total = sum(attribution.values()) or 1
             top_contributors = [
-                {"name": c[0], "percentage": f"{(c[1]/total)*100:.1f}%"}
+                {"name": c[0], "percentage": f"{(c[1] / total) * 100:.1f}%"}
                 for c in sorted_contribs
             ]
-            deps = list(dict.fromkeys(
-                n["label"] for n in graph_dict["nodes"]
-                if n["type"] in ("PACKAGE", "BODY_OF_WORK")
-            ))[:20]
+            deps = list(
+                dict.fromkeys(
+                    n["label"]
+                    for n in graph_dict["nodes"]
+                    if n["type"] in ("PACKAGE", "BODY_OF_WORK")
+                )
+            )[:20]
 
             return {
                 "name": name,
@@ -420,15 +444,16 @@ async def _run_trace(
             graph_dict = graph.model_dump()
             name = title or arxiv_id
 
-            sorted_contribs = sorted(attribution.items(), key=lambda x: x[1], reverse=True)[:10]
+            sorted_contribs = sorted(
+                attribution.items(), key=lambda x: x[1], reverse=True
+            )[:10]
             total = sum(attribution.values()) or 1
             top_contributors = [
-                {"name": c[0], "percentage": f"{(c[1]/total)*100:.1f}%"}
+                {"name": c[0], "percentage": f"{(c[1] / total) * 100:.1f}%"}
                 for c in sorted_contribs
             ]
             deps = [
-                n["label"] for n in graph_dict["nodes"]
-                if n["type"] in ("CITED_WORK",)
+                n["label"] for n in graph_dict["nodes"] if n["type"] in ("CITED_WORK",)
             ][:20]
 
             return {
@@ -452,16 +477,21 @@ async def _run_trace(
             graph, config, attribution = await build_package_graph(pkg_name, ecosystem)
             graph_dict = graph.model_dump()
 
-            sorted_contribs = sorted(attribution.items(), key=lambda x: x[1], reverse=True)[:10]
+            sorted_contribs = sorted(
+                attribution.items(), key=lambda x: x[1], reverse=True
+            )[:10]
             total = sum(attribution.values()) or 1
             top_contributors = [
-                {"name": c[0], "percentage": f"{(c[1]/total)*100:.1f}%"}
+                {"name": c[0], "percentage": f"{(c[1] / total) * 100:.1f}%"}
                 for c in sorted_contribs
             ]
-            deps = list(dict.fromkeys(
-                n["label"] for n in graph_dict["nodes"]
-                if n["type"] in ("PACKAGE", "BODY_OF_WORK")
-            ))[:20]
+            deps = list(
+                dict.fromkeys(
+                    n["label"]
+                    for n in graph_dict["nodes"]
+                    if n["type"] in ("PACKAGE", "BODY_OF_WORK")
+                )
+            )[:20]
 
             return {
                 "name": pkg_name,
@@ -488,10 +518,18 @@ async def stream_trace(
     url: str = Query(..., description="URL to trace (GitHub, arXiv, npm, PyPI)"),
     type: Optional[str] = Query(None, description="Force type: repo, paper, package"),
     depth: Optional[int] = Query(None, ge=1, le=10, description="Max recursion depth"),
-    max_children: Optional[int] = Query(None, ge=1, le=50, description="Max child nodes per level"),
+    max_children: Optional[int] = Query(
+        None, ge=1, le=50, description="Max child nodes per level"
+    ),
 ):
     trace_type = type or _detect_type(url)
-    logger.info("[STREAM] trace called: url=%s type=%s depth=%s max_children=%s", url, trace_type, depth, max_children)
+    logger.info(
+        "[STREAM] trace called: url=%s type=%s depth=%s max_children=%s",
+        url,
+        trace_type,
+        depth,
+        max_children,
+    )
     log_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
 
     async def event_generator():
@@ -500,16 +538,21 @@ async def stream_trace(
         try:
             # Start screenshot immediately, in parallel with the trace.
             # This way it runs during the graph-building work instead of after
-            preliminary_slug = _slugify(_extract_name_from_url(url, trace_type))
             canonical_url = _canonical_source_url(url, trace_type)
             screenshot_task = asyncio.create_task(
-                take_project_screenshot(preliminary_slug, canonical_url)
+                take_project_screenshot(canonical_url)
             )
 
             yield _sse_event("log", f"Starting {trace_type} trace for {url}...")
 
             trace_task = asyncio.create_task(
-                _run_trace(url, trace_type, log_queue, max_depth=depth, max_children=max_children)
+                _run_trace(
+                    url,
+                    trace_type,
+                    log_queue,
+                    max_depth=depth,
+                    max_children=max_children,
+                )
             )
 
             while not trace_task.done():
@@ -535,7 +578,8 @@ async def stream_trace(
                 if screenshot_task.done():
                     try:
                         cover_url = await _apply_cover_image(
-                            screenshot_task, actual_slug, preliminary_slug,
+                            screenshot_task,
+                            actual_slug,
                         )
                         if cover_url:
                             project_dict["cover_image_url"] = cover_url
@@ -544,7 +588,7 @@ async def stream_trace(
                 else:
                     # Still running — finalize in background after it completes
                     asyncio.create_task(
-                        _apply_cover_image(screenshot_task, actual_slug, preliminary_slug)
+                        _apply_cover_image(screenshot_task, actual_slug)
                     )
 
                 yield _sse_event("result", project_dict)
@@ -552,8 +596,11 @@ async def stream_trace(
             except Exception as save_exc:
                 if screenshot_task and not screenshot_task.done():
                     screenshot_task.cancel()
-                logger.warning("DB save failed (%s), sending fallback result: %s",
-                               type(save_exc).__name__, save_exc)
+                logger.warning(
+                    "DB save failed (%s), sending fallback result: %s",
+                    type(save_exc).__name__,
+                    save_exc,
+                )
                 yield _sse_event(
                     "result",
                     {

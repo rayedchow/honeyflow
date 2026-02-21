@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from sqlalchemy import or_, select
 
 from app.database import get_session, session_scope
@@ -61,6 +62,23 @@ async def get_project(slug: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return _to_dict(project)
+
+
+@router.get("/{slug}/cover")
+async def get_project_cover(slug: str):
+    async with get_session() as session:
+        cover_data = await session.scalar(
+            select(Project.cover_image_data).where(Project.slug == slug)
+        )
+
+    if not cover_data:
+        raise HTTPException(status_code=404, detail="Project cover image not found")
+
+    return Response(
+        content=cover_data,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.delete("/{slug}")

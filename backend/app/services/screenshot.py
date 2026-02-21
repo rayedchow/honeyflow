@@ -2,15 +2,11 @@
 
 import asyncio
 import logging
-from pathlib import Path
 from typing import Optional
 
 from playwright.async_api import Browser, Playwright, async_playwright
 
 logger = logging.getLogger(__name__)
-
-# Directory where cover images are stored
-COVERS_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "covers"
 
 # Viewport for OG-compatible images
 VIEWPORT_WIDTH = 1200
@@ -53,15 +49,12 @@ async def close_browser() -> None:
     logger.info("Playwright browser closed")
 
 
-async def take_project_screenshot(slug: str, source_url: str) -> Optional[str]:
+async def take_project_screenshot(source_url: str) -> Optional[bytes]:
     """Navigate to the project's source URL, screenshot the page.
 
-    Returns the URL path (e.g. "/static/covers/{slug}.png") on success,
+    Returns raw PNG bytes on success,
     or None on failure.
     """
-    COVERS_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = COVERS_DIR / "{}.png".format(slug)
-
     try:
         browser = await _get_browser()
         context = await browser.new_context(
@@ -79,14 +72,13 @@ async def take_project_screenshot(slug: str, source_url: str) -> Optional[str]:
             # Give JS-rendered content time to paint
             await page.wait_for_timeout(3000)
 
-            await page.screenshot(path=str(output_path), type="png")
-            logger.info("Screenshot saved: %s", output_path)
-
-            return "/static/covers/{}.png".format(slug)
+            png_bytes = await page.screenshot(type="png")
+            logger.info("Screenshot captured for %s (%d bytes)", source_url, len(png_bytes))
+            return png_bytes
 
         finally:
             await context.close()
 
     except Exception as exc:
-        logger.warning("Screenshot failed for %s: %s", slug, exc)
+        logger.warning("Screenshot failed for %s: %s", source_url, exc)
         return None

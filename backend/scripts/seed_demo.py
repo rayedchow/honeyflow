@@ -27,6 +27,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from sqlalchemy import delete, select, text
+from sqlalchemy.orm import defer
 
 from app.database import SessionLocal, engine, session_scope
 from app.models.badge import Badge
@@ -39,6 +40,8 @@ from app.services.github import parse_repo_owner_and_name
 from app.services.graph_builder import build_contribution_graph
 from app.services.package_graph_builder import build_package_graph
 from app.services.donation_db import init_donations_db
+from app.services.screenshot import take_project_screenshot
+from app.services.vault_db import init_db as init_vault_db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -59,43 +62,43 @@ TRACE_MAX_CITATIONS = 8
 
 PROJECTS_TO_TRACE = [
     # ── Repos ─────────────────────────────────────────────────
-    # {
-    #     "url": "https://github.com/transmissions11/solmate",
-    #     "type": "repo",
-    #     "raised": 67100.0,
-    #     "category": "Infrastructure",
-    # },
-    # {
-    #     "url": "https://github.com/Vectorized/solady",
-    #     "type": "repo",
-    #     "raised": 52300.0,
-    #     "category": "Infrastructure",
-    # },
-    # {
-    #     "url": "https://github.com/pcaversaccio/createx",
-    #     "type": "repo",
-    #     "raised": 34500.0,
-    #     "category": "Security",
-    # },
-    # {
-    #     "url": "https://github.com/Uniswap/permit2",
-    #     "type": "repo",
-    #     "raised": 45200.0,
-    #     "category": "Infrastructure",
-    # },
-    # # ── Papers ────────────────────────────────────────────────
-    # {
-    #     "url": "https://arxiv.org/abs/1706.03762",
-    #     "type": "paper",
-    #     "raised": 41200.0,
-    #     "category": "Research",
-    # },
-    # {
-    #     "url": "https://arxiv.org/abs/2010.11929",
-    #     "type": "paper",
-    #     "raised": 31200.0,
-    #     "category": "Research",
-    # },
+    {
+        "url": "https://github.com/transmissions11/solmate",
+        "type": "repo",
+        "raised": 67100.0,
+        "category": "Infrastructure",
+    },
+    {
+        "url": "https://github.com/Vectorized/solady",
+        "type": "repo",
+        "raised": 52300.0,
+        "category": "Infrastructure",
+    },
+    {
+        "url": "https://github.com/pcaversaccio/createx",
+        "type": "repo",
+        "raised": 34500.0,
+        "category": "Security",
+    },
+    {
+        "url": "https://github.com/Uniswap/permit2",
+        "type": "repo",
+        "raised": 45200.0,
+        "category": "Infrastructure",
+    },
+    # ── Papers ────────────────────────────────────────────────
+    {
+        "url": "https://arxiv.org/abs/1706.03762",
+        "type": "paper",
+        "raised": 41200.0,
+        "category": "Research",
+    },
+    {
+        "url": "https://arxiv.org/abs/2010.11929",
+        "type": "paper",
+        "raised": 31200.0,
+        "category": "Research",
+    },
     # ── Packages ──────────────────────────────────────────────
     {
         "url": "https://www.npmjs.com/package/viem",
@@ -108,6 +111,12 @@ PROJECTS_TO_TRACE = [
         "type": "package",
         "raised": 23800.0,
         "category": "Infrastructure",
+    },
+    {
+        "url": "https://github.com/rayedchow/codeu",
+        "type": "repo",
+        "raised": 2600.0,
+        "category": "AI",
     },
 ]
 
@@ -122,6 +131,8 @@ DEMO_WALLETS = [
     "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
     "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
 ]
+HARDCODED_PROJECT_VAULT_ADDRESS = "0xA379391214d8D4Cbed7d8190a598CAf93ad38ED3"
+HARDCODED_PROJECT_VAULT_ID = "seeded-shared-vault"
 
 
 # ---------------------------------------------------------------------------
@@ -395,6 +406,40 @@ async def _save_traced_project(result: dict, spec: dict) -> Optional[Project]:
         return project
 
 
+async def _apply_cover_image(
+    screenshot_task: asyncio.Task,
+    actual_slug: str,
+) -> str | None:
+    """Persist generated cover bytes to project.cover_image_data/url."""
+    try:
+        cover_data = await asyncio.wait_for(screenshot_task, timeout=60.0)
+        if not cover_data:
+            return None
+
+        cover_url = f"/projects/{actual_slug}/cover"
+
+        async with session_scope() as session:
+            project = await session.scalar(
+                select(Project)
+                .where(Project.slug == actual_slug)
+                .options(
+                    defer(Project.graph_data),
+                    defer(Project.attribution),
+                    defer(Project.dependencies),
+                    defer(Project.top_contributors),
+                )
+            )
+            if project:
+                project.cover_image_data = cover_data
+                project.cover_image_url = cover_url
+                logger.info("Cover image updated for %s: %s", actual_slug, cover_url)
+                return cover_url
+        return None
+    except Exception as exc:
+        logger.warning("Cover image finalization failed for %s: %s", actual_slug, exc)
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -552,6 +597,30 @@ def _build_community_feedback(project_slugs: list[str]) -> list[dict]:
     return feedback
 
 
+async def _seed_project_vaults(project_slugs: list[str]) -> None:
+    """Upsert the same hardcoded vault address for every seeded project."""
+    async with SessionLocal() as session:
+        for slug in project_slugs:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO project_vaults (project_id, wallet_id, address)
+                    VALUES (:project_id, :wallet_id, :address)
+                    ON CONFLICT (project_id)
+                    DO UPDATE SET
+                        wallet_id = EXCLUDED.wallet_id,
+                        address = EXCLUDED.address
+                    """
+                ),
+                {
+                    "project_id": slug,
+                    "wallet_id": HARDCODED_PROJECT_VAULT_ID,
+                    "address": HARDCODED_PROJECT_VAULT_ADDRESS,
+                },
+            )
+        await session.commit()
+
+
 # ---------------------------------------------------------------------------
 # Ensure tables exist
 # ---------------------------------------------------------------------------
@@ -578,6 +647,7 @@ async def _ensure_tables() -> None:
 
 async def seed() -> None:
     await init_donations_db()
+    await init_vault_db()
     await _ensure_tables()
 
     # ── Phase 1: Trace all projects ───────────────────────────
@@ -598,10 +668,15 @@ async def seed() -> None:
         print(f"\n[{i}/{len(PROJECTS_TO_TRACE)}] {spec['type'].upper()}: {spec['url']}")
         print("-" * 60)
 
+        canonical_url = _canonical_source_url(spec["url"], spec["type"])
+        screenshot_task = asyncio.create_task(take_project_screenshot(canonical_url))
+
         result = await _trace_project(spec)
         if result is None:
+            if not screenshot_task.done():
+                screenshot_task.cancel()
             failed.append(spec["url"])
-            print(f"  ✗ FAILED — skipping")
+            print("  ✗ FAILED — skipping")
             continue
 
         n_nodes = len(result["graph_data"].get("nodes", []))
@@ -613,14 +688,21 @@ async def seed() -> None:
 
         project = await _save_traced_project(result, spec)
         if project:
+            cover_url = await _apply_cover_image(screenshot_task, project.slug)
             saved_projects.append((project, spec))
             print(
                 f"  ✓ Saved: slug={project.slug}, id={project.id}, "
                 f"${spec.get('raised', 0):,.0f} raised"
             )
+            if cover_url:
+                print(f"  ✓ Cover: {cover_url}")
+            else:
+                print("  ⚠ Cover: not generated")
         else:
+            if not screenshot_task.done():
+                screenshot_task.cancel()
             failed.append(spec["url"])
-            print(f"  ✗ Save failed")
+            print("  ✗ Save failed")
 
     if not saved_projects:
         print("\nNo projects were traced successfully. Aborting.")
@@ -633,6 +715,12 @@ async def seed() -> None:
     print("=" * 60)
     print("PHASE 2: SEEDING SUPPLEMENTARY DATA")
     print("=" * 60)
+
+    print(
+        f"\nHardcoding project vault wallets ({len(slugs)} projects) -> "
+        f"{HARDCODED_PROJECT_VAULT_ADDRESS}"
+    )
+    await _seed_project_vaults(slugs)
 
     donations = _build_donations(slugs)
     edge_votes_data = _build_edge_votes(saved_projects)
@@ -734,6 +822,7 @@ async def seed() -> None:
     print(f"  Edge votes:         {len(edge_votes_data)}")
     print(f"  Jury priors:        {len(jury_priors)}")
     print(f"  Community feedback: {len(community_fb)}")
+    print(f"  Project vaults:     {len(slugs)} (hardcoded)")
 
     print("\nProjects in DB:")
     for project, spec in saved_projects:
@@ -759,6 +848,7 @@ async def seed() -> None:
 async def reset_db() -> None:
     """Drop ALL data from every application table."""
     await init_donations_db()
+    await init_vault_db()
     await _ensure_tables()
 
     async with SessionLocal() as session:

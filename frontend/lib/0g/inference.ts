@@ -2,8 +2,11 @@ import { getBrokerContext } from "./broker";
 import { buildPrompt, type InferenceAction } from "./prompts";
 
 const MAX_RETRIES = 2;
-const GEMINI_MODEL = "gemini-2.5-flash"; // use gemini as fallback for demo if no more credits
+const GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const INFERENCE_PROVIDER = (
+  process.env.INFERENCE_PROVIDER || "gemini"
+).toLowerCase();
 
 interface ChatCompletion {
   id: string;
@@ -11,13 +14,17 @@ interface ChatCompletion {
 }
 
 /**
- * Call 0G inference with a pre-built prompt string. Returns raw text.
+ * Call inference backend and return raw text.
  */
 export async function infer(prompt: string): Promise<string | null> {
-  // Try 0G first
+  // Default to Gemini. 0G is opt-in via INFERENCE_PROVIDER=0g.
+  if (INFERENCE_PROVIDER !== "0g") {
+    return inferFallback(prompt);
+  }
+
+  // 0G path with Gemini fallback if 0G fails.
   const zeroGResult = await infer0G(prompt);
   if (zeroGResult !== null) return zeroGResult;
-
   return inferFallback(prompt);
 }
 
@@ -108,15 +115,16 @@ async function inferFallback(prompt: string): Promise<string | null> {
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`0G inference ${res.status}: ${body.slice(0, 200)}`);
+      throw new Error(`Gemini inference ${res.status}: ${body.slice(0, 200)}`);
     }
 
     const data = await res.json();
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    console.log("[0G] inference OK, response length:", content.length);
+    console.log("[GEMINI] inference OK, response length:", content.length);
     return content;
-  } catch {
+  } catch (e) {
+    console.warn("[GEMINI] inference failed:", e);
     return null;
   }
 }
@@ -163,7 +171,7 @@ function parseJsonResponse(raw: string | null): any {
           /* fall through */
         }
       }
-      console.warn("[0G] failed to parse JSON:", raw.slice(0, 300));
+      console.warn("[INFER] failed to parse JSON:", raw.slice(0, 300));
       return null;
     }
   }

@@ -87,10 +87,9 @@ def create_app() -> FastAPI:
     app.include_router(users.router)
     app.include_router(vault.router)
 
-    # Serve screenshot cover images
+    # Keep static mounted for existing assets/backward compatibility.
     static_dir = Path(__file__).resolve().parent.parent / "static"
     static_dir.mkdir(parents=True, exist_ok=True)
-    (static_dir / "covers").mkdir(parents=True, exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     @app.get("/health")
