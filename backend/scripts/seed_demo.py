@@ -132,7 +132,7 @@ DEMO_WALLETS = [
     "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
 ]
 HARDCODED_PROJECT_VAULT_ADDRESS = "0xA379391214d8D4Cbed7d8190a598CAf93ad38ED3"
-HARDCODED_PROJECT_VAULT_ID = "seeded-shared-vault"
+HARDCODED_PROJECT_VAULT_ID = "rx5fk2e7zbpnisc4ckdea4jy"
 
 
 # ---------------------------------------------------------------------------

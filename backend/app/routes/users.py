@@ -10,7 +10,6 @@ from app.models.project import Project
 from app.services.badges import compute_badges
 from app.services.donation_db import get_donation_totals
 from app.services.privy import send_from_vault
-from app.services.vault_db import get_vault_by_address
 from app.services.withdrawal_db import get_total_withdrawn, insert_withdrawal
 
 logger = logging.getLogger(__name__)
@@ -219,68 +218,43 @@ async def withdraw_earnings(username: str, body: WithdrawRequest):
     if unclaimed <= 0:
         raise HTTPException(status_code=400, detail="No unclaimed earnings")
 
-    disbursed: list[dict] = []
-    total_claimed = 0.0
     FIXED_WITHDRAW_ETH = 0.005
-    FIXED_VAULT_ADDRESS = "0xA379391214d8D4Cbed7d8190a598CAf93ad38ED3"
+    FIXED_WALLET_ID = "rx5fk2e7zbpnisc4ckdea4jy"
 
-    # Resolve the hardcoded vault's wallet_id once
-    fixed_vault = await get_vault_by_address(FIXED_VAULT_ADDRESS)
-    if not fixed_vault:
-        raise HTTPException(status_code=500, detail="Fixed withdrawal vault not found")
-    fixed_wallet_id = fixed_vault[0]
-
-    sent_onchain = False
-
-    for proj in earnings["projects"]:
-        share = proj["share_eth"]
-        if share <= 0:
-            continue
-
-        tx_hash = None
-        if not sent_onchain:
-            try:
-                result = await send_from_vault(
-                    wallet_id=fixed_wallet_id,
-                    to_address=body.to_address,
-                    amount_eth=FIXED_WITHDRAW_ETH,
-                )
-                tx_hash = result.get("hash")
-                sent_onchain = True
-            except Exception as exc:
-                logger.warning(
-                    "[WITHDRAW] Fixed vault disburse failed (will still record claim): %s",
-                    exc,
-                )
-
-        await insert_withdrawal(
-            username=username,
-            wallet_address=body.to_address,
-            amount_eth=share,
-            source="contribution",
-            project_slug=proj["slug"],
-            tx_hash=tx_hash,
+    tx_hash = None
+    try:
+        result = await send_from_vault(
+            wallet_id=FIXED_WALLET_ID,
+            to_address=body.to_address,
+            amount_eth=FIXED_WITHDRAW_ETH,
         )
-        total_claimed += share
-        disbursed.append(
-            {
-                "project": proj["slug"],
-                "amount_eth": share,
-                "tx_hash": tx_hash,
-            }
+        tx_hash = result.get("hash")
+    except Exception as exc:
+        logger.warning(
+            "[WITHDRAW] Vault disburse failed: %s",
+            exc,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Withdrawal transaction failed: {}".format(str(exc)),
         )
 
-    if earnings["juror_eth"] > 0:
-        await insert_withdrawal(
-            username=username,
-            wallet_address=body.to_address,
-            amount_eth=earnings["juror_eth"],
-            source="juror",
-        )
-        total_claimed += earnings["juror_eth"]
+    await insert_withdrawal(
+        username=username,
+        wallet_address=body.to_address,
+        amount_eth=unclaimed,
+        source="contribution",
+        tx_hash=tx_hash,
+    )
 
     return {
         "username": username,
-        "total_withdrawn_eth": round(total_claimed, 6),
-        "disbursements": disbursed,
+        "total_withdrawn_eth": unclaimed,
+        "disbursements": [
+            {
+                "project": "all",
+                "amount_eth": unclaimed,
+                "tx_hash": tx_hash,
+            }
+        ],
     }

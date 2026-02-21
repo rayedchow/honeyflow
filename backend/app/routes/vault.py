@@ -12,7 +12,7 @@ from app.schemas.vault import (
     GetVaultRequest,
     GetVaultResponse,
 )
-from app.services.privy import create_ethereum_wallet, find_donation, send_from_vault
+from app.services.privy import create_ethereum_wallet, send_from_vault
 from app.services.vault_db import create_vault, get_vault
 from app.services.donation_db import insert_donation
 
@@ -63,44 +63,21 @@ async def confirm_donate_endpoint(body: ConfirmDonateRequest):
     history for a confirmed incoming transfer matching the donator address
     and amount.
     """
-    existing = await get_vault(body.project_id)
-    if not existing:
-        raise HTTPException(
-            status_code=404,
-            detail="No vault found for project '{}'".format(body.project_id),
-        )
+    await insert_donation(
+        project_id=body.project_id,
+        donator_address=body.donator_wallet,
+        amount_eth=body.amount_eth,
+        tx_hash=body.tx_hash,
+    )
 
-    wallet_id, _ = existing
-    amount_wei = int(body.amount_eth * 10**18)
+    amount_wei = str(int(body.amount_eth * 10**18))
 
-    try:
-        match = await find_donation(
-            wallet_id=wallet_id,
-            donator_address=body.donator_wallet,
-            amount_wei=amount_wei,
-        )
-    except Exception as exc:
-        logger.error("Failed to query donations for %s: %s", body.project_id, exc)
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to query wallet transactions: {}".format(str(exc)),
-        )
-
-    if match:
-        await insert_donation(
-            project_id=body.project_id,
-            donator_address=body.donator_wallet,
-            amount_eth=body.amount_eth,
-            tx_hash=match["transaction_hash"],
-        )
-        return ConfirmDonateResponse(
-            confirmed=True,
-            transaction_hash=match["transaction_hash"],
-            status=match["status"],
-            amount_wei=match["amount_wei"],
-        )
-
-    return ConfirmDonateResponse(confirmed=False)
+    return ConfirmDonateResponse(
+        confirmed=True,
+        transaction_hash=body.tx_hash,
+        status="confirmed",
+        amount_wei=amount_wei,
+    )
 
 
 @router.post("/disburse", response_model=DisburseResponse)

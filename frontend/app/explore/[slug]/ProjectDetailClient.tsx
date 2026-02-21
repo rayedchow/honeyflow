@@ -119,7 +119,7 @@ export default function ProjectDetailClient({
       setTxHash(tx.hash);
       setTxStatus("confirming");
 
-      const confirmation = await confirmDonate(project.slug, addr, parseFloat(amount));
+      const confirmation = await confirmDonate(project.slug, addr, parseFloat(amount), tx.hash);
       if (confirmation.confirmed) {
         setTxStatus("done");
         setRaisedBonus((prev) => prev + parseFloat(amount));

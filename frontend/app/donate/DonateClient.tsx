@@ -252,7 +252,7 @@ export default function DonateClient() {
       setTxHash(tx.hash);
       setTxStatus("confirming");
 
-      const confirmation = await confirmDonate(result.slug, addr, parseFloat(amount));
+      const confirmation = await confirmDonate(result.slug, addr, parseFloat(amount), tx.hash);
       if (confirmation.confirmed) {
         setTxStatus("done");
       } else {

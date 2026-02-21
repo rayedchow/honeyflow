@@ -19,6 +19,7 @@ class ConfirmDonateRequest(BaseModel):
     project_id: str
     donator_wallet: str
     amount_eth: float
+    tx_hash: Optional[str] = None
 
 
 class ConfirmDonateResponse(BaseModel):

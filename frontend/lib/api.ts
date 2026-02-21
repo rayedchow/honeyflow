@@ -189,6 +189,7 @@ export async function confirmDonate(
   projectId: string,
   donatorWallet: string,
   amountEth: number,
+  txHash?: string,
 ): Promise<{ confirmed: boolean; transaction_hash: string | null }> {
   const res = await fetch(`${API_BASE}/confirm_donate`, {
     method: "POST",
@@ -197,6 +198,7 @@ export async function confirmDonate(
       project_id: projectId,
       donator_wallet: donatorWallet,
       amount_eth: amountEth,
+      tx_hash: txHash,
     }),
   });
   if (!res.ok) throw new Error(`Failed to confirm donation: ${res.status}`);
