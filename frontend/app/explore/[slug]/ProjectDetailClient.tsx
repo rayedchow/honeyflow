@@ -2,26 +2,82 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import useSWR from "swr";
 import { BrowserProvider, parseEther } from "ethers";
 import { typeConfig } from "@/components/ui/TypeIcons";
 import EthIcon from "@/components/ui/EthIcon";
 import FundingCycle from "@/components/ui/FundingCycle";
 import ForceGraph from "@/components/viz/ForceGraph";
-import { getVault, confirmDonate } from "@/lib/api";
+import { fetchProject, getVault, confirmDonate } from "@/lib/api";
 import { useWallet } from "@/hooks/useWallet";
 import type { Project } from "@/lib/types";
 
 type TxStatus = "idle" | "connecting" | "sending" | "confirming" | "done" | "error";
 
 const ETH_TO_USD = 2500;
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// ── Loading / indexing skeleton ───────────────────────────────────────────────
+
+function ProjectLoadingSkeleton({ slug }: { slug: string }) {
+  return (
+    <div className="px-8 py-8">
+      <nav className="mb-6">
+        <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest">
+          <Link
+            href="/explore"
+            className="text-agentbase-muted hover:text-agentbase-text transition-colors"
+          >
+            Explore
+          </Link>
+          <span className="text-agentbase-muted">/</span>
+          <span className="text-agentbase-text font-bold">{slug}</span>
+        </div>
+      </nav>
+
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <svg className="animate-spin h-8 w-8 text-agentbase-muted mb-6" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <p className="text-agentbase-text text-lg font-bold mb-2">
+          Indexing project...
+        </p>
+        <p className="text-agentbase-muted text-sm max-w-md">
+          This project is still being traced and saved. The page will update
+          automatically once it&#39;s ready.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function ProjectDetailClient({
-  project,
+  project: initialProject,
+  slug,
   source,
 }: {
-  project: Project;
-  source: "api" | "static";
+  project: Project | null;
+  slug: string;
+  source: string;
 }) {
+  // SWR polls until the project (and its cover image) are available
+  const needsPolling = !initialProject || !initialProject.cover_image_url;
+
+  const { data: project } = useSWR<Project>(
+    `project-${slug}`,
+    () => fetchProject(slug),
+    {
+      fallbackData: initialProject ?? undefined,
+      refreshInterval: needsPolling ? 3000 : 0,
+      errorRetryInterval: 3000,
+      revalidateOnFocus: true,
+    },
+  );
+
   const [amount, setAmount] = useState("");
   const { address: walletAddress, isConnecting: walletConnecting, connect: connectWallet } = useWallet();
   const [txStatus, setTxStatus] = useState<TxStatus>("idle");
@@ -30,12 +86,10 @@ export default function ProjectDetailClient({
   const [showUsd, setShowUsd] = useState(false);
   const [raisedBonus, setRaisedBonus] = useState(0);
 
-  const typeKey = project.type as keyof typeof typeConfig;
-  const { Icon, label: typeLabel } = typeConfig[typeKey] || typeConfig["repo"];
-  const canDonate = amount.trim().length > 0 && parseFloat(amount) > 0;
-
   const handleDonate = useCallback(async () => {
-    if (!canDonate) return;
+    if (!project) return;
+    const canDo = amount.trim().length > 0 && parseFloat(amount) > 0;
+    if (!canDo) return;
 
     setTxError(null);
     setTxHash(null);
@@ -76,7 +130,16 @@ export default function ProjectDetailClient({
       setTxStatus("error");
       setTxError(err instanceof Error ? err.message : "Transaction failed");
     }
-  }, [canDonate, walletAddress, connectWallet, amount, project.slug]);
+  }, [amount, walletAddress, connectWallet, project]);
+
+  // ── Loading state (project not in DB yet) ─────────────────────────────────
+  if (!project) {
+    return <ProjectLoadingSkeleton slug={slug} />;
+  }
+
+  const typeKey = project.type as keyof typeof typeConfig;
+  const { Icon, label: typeLabel } = typeConfig[typeKey] || typeConfig["repo"];
+  const canDonate = amount.trim().length > 0 && parseFloat(amount) > 0;
 
   const hasGraph =
     project.graph_data &&
@@ -105,13 +168,28 @@ export default function ProjectDetailClient({
       </nav>
 
       {/* Cover image banner */}
-      {project.cover_image_url && (
-        <div className="w-full h-48 md:h-64 overflow-hidden border border-agentbase-border mb-8">
-          <img
-            src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${project.cover_image_url}`}
+      {project.cover_image_url ? (
+        <div className="relative w-full h-48 md:h-64 overflow-hidden border border-agentbase-border mb-8">
+          <Image
+            src={`${API_BASE}${project.cover_image_url}`}
             alt={`${project.name} dependency graph`}
-            className="w-full h-full object-cover"
+            fill
+            sizes="100vw"
+            className="object-cover"
+            priority
           />
+        </div>
+      ) : (
+        <div className="w-full h-48 md:h-64 overflow-hidden border border-agentbase-border mb-8 bg-agentbase-canvasBg flex items-center justify-center">
+          <div className="flex items-center gap-3 text-agentbase-muted">
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-[11px] font-mono uppercase tracking-widest">
+              Generating cover image...
+            </span>
+          </div>
         </div>
       )}
 
@@ -241,10 +319,10 @@ export default function ProjectDetailClient({
               >
                 <EthIcon size={10} />
                 {(() => {
-                  if (walletConnecting || txStatus === "connecting") return "Connecting…";
-                  if (txStatus === "sending") return "Confirm in MetaMask…";
-                  if (txStatus === "confirming") return "Verifying on-chain…";
-                  if (txStatus === "error") return "Failed — retry";
+                  if (walletConnecting || txStatus === "connecting") return "Connecting\u2026";
+                  if (txStatus === "sending") return "Confirm in MetaMask\u2026";
+                  if (txStatus === "confirming") return "Verifying on-chain\u2026";
+                  if (txStatus === "error") return "Failed \u2014 retry";
                   if (!walletAddress) return "Connect Wallet";
                   return `Donate ${amount || "0"} ETH`;
                 })()}
@@ -261,7 +339,7 @@ export default function ProjectDetailClient({
           </div>
 
           {/* Funding cycle */}
-          <FundingCycle projectSlug={project.slug} showUsd={showUsd} />
+          <FundingCycle projectSlug={project.slug} />
 
           {/* Stats grid */}
           <div className="border border-agentbase-border bg-agentbase-card">

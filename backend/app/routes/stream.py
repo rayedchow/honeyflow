@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import unquote, urlparse
 
@@ -11,6 +12,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import defer
 
 from app.database import session_scope
 from app.models.project import Project
@@ -18,7 +20,7 @@ from app.services.citation_graph_builder import build_citation_graph
 from app.services.github import parse_repo_owner_and_name
 from app.services.graph_builder import build_contribution_graph
 from app.services.package_graph_builder import build_package_graph
-from app.services.screenshot import take_project_screenshot
+from app.services.screenshot import COVERS_DIR, take_project_screenshot
 
 logger = logging.getLogger(__name__)
 
@@ -211,21 +213,37 @@ async def _upsert_project(session, result: dict, allow_create: bool) -> Project:
     canonical_url = _canonical_source_url(result["source_url"], trace_type)
     canonical_key = _canonical_source_key(result["source_url"], trace_type)
 
+    # Defer large JSONB columns, we only overwrite them, never read them
+    _jsonb_deferred = (
+        defer(Project.graph_data),
+        defer(Project.attribution),
+        defer(Project.dependencies),
+        defer(Project.top_contributors),
+    )
+
     existing = await session.scalar(
-        select(Project).where(Project.canonical_key == canonical_key)
+        select(Project)
+        .where(Project.canonical_key == canonical_key)
+        .options(*_jsonb_deferred)
     )
     if existing is None:
         # Backward-compatible fallback for rows created before canonical_key existed.
         existing = await session.scalar(
-            select(Project).where(
+            select(Project)
+            .where(
                 Project.type == trace_type,
                 Project.source_url == canonical_url,
             )
+            .options(*_jsonb_deferred)
         )
 
     if existing:
         _apply_payload(existing, result, canonical_url)
         existing.canonical_key = canonical_key
+        # Set updated_at explicitly so the Python object has a real datetime
+        # after flush (onupdate=func.now() sends now() to DB but leaves the
+        # Python attr stale in async mode without eager_defaults)
+        existing.updated_at = datetime.now(timezone.utc)
         await session.flush()
         return existing
 
@@ -262,50 +280,89 @@ async def _upsert_project(session, result: dict, allow_create: bool) -> Project:
 
 
 async def _save_project(result: dict) -> dict:
+    """Save trace result to DB with retry logic.
+
+    Each attempt opens a fresh session (NullPool = fresh connection from
+    PgBouncer every time), so retries won't hit a poisoned connection.
+    No outer timeout — each attempt is bounded by SQLAlchemy / Neon limits
+    """
     canonical_key = _canonical_source_key(result["source_url"], result["type"])
     lock = _SAVE_LOCKS.setdefault(canonical_key, asyncio.Lock())
 
-    last_exc = None
+    input_nodes = len(result.get("graph_data", {}).get("nodes", []))
+    input_edges = len(result.get("graph_data", {}).get("edges", []))
+    logger.info("DB save starting: %s — %d nodes/%d edges",
+                result.get("name"), input_nodes, input_edges)
+
+    last_exc: Exception | None = None
     for attempt in range(3):
         async with lock:
             try:
                 async with session_scope() as session:
                     project = await _upsert_project(session, result, allow_create=True)
-                    await session.refresh(project)
-                    return _project_to_dict(project)
+                    # No refresh() — expire_on_commit=False keeps all attrs;
+                    # INSERT gets id/timestamps via RETURNING; UPDATE path
+                    # sets updated_at explicitly in _upsert_project
+                    saved = _project_to_dict(project)
+                    saved_nodes = len(saved.get("graph_data", {}).get("nodes", []))
+                    logger.info(
+                        "DB save OK: %s — input %d nodes/%d edges, saved %d nodes",
+                        result.get("name"), input_nodes, input_edges, saved_nodes,
+                    )
+                    return saved
             except IntegrityError:
-                async with session_scope() as session:
-                    project = await _upsert_project(session, result, allow_create=False)
-                    await session.refresh(project)
-                    return _project_to_dict(project)
+                try:
+                    async with session_scope() as session:
+                        project = await _upsert_project(session, result, allow_create=False)
+                        return _project_to_dict(project)
+                except Exception as exc:
+                    last_exc = exc
+                    logger.warning("DB save (integrity retry) attempt %d failed: %s [%s]",
+                                   attempt + 1, type(exc).__name__, exc)
             except Exception as exc:
                 last_exc = exc
-                logging.getLogger(__name__).warning(
-                    "DB save attempt %d failed: %s", attempt + 1, exc
+                logger.warning(
+                    "DB save attempt %d failed: %s [%s]",
+                    attempt + 1, type(exc).__name__, exc,
                 )
-                if attempt < 2:
-                    await asyncio.sleep(1)
-    raise last_exc
+        if attempt < 2:
+            await asyncio.sleep(2 * (attempt + 1))
+    raise last_exc  # type: ignore[misc]
 
 
-async def _generate_cover_image(slug: str) -> None:
-    """Background task: screenshot the project page and update the DB."""
+async def _apply_cover_image(
+    screenshot_task: asyncio.Task,
+    actual_slug: str,
+    preliminary_slug: str,
+) -> str | None:
+    """Await a screenshot task, rename file if slug changed, update DB.
+
+    Returns the cover_url on success, None on failure.
+    """
     try:
-        await asyncio.sleep(2)  # let Next.js serve the page
-
-        cover_url = await take_project_screenshot(slug)
+        cover_url = await asyncio.wait_for(screenshot_task, timeout=60.0)
         if not cover_url:
-            return
+            return None
+
+        # Rename file if the DB-assigned slug differs from the pre-computed one
+        if actual_slug != preliminary_slug:
+            old_path = COVERS_DIR / f"{preliminary_slug}.png"
+            new_path = COVERS_DIR / f"{actual_slug}.png"
+            if old_path.exists():
+                old_path.rename(new_path)
+            cover_url = f"/static/covers/{actual_slug}.png"
 
         async with session_scope() as session:
             project = await session.scalar(
-                select(Project).where(Project.slug == slug)
+                select(Project).where(Project.slug == actual_slug)
             )
             if project:
                 project.cover_image_url = cover_url
-                logger.info("Cover image updated for %s: %s", slug, cover_url)
+                logger.info("Cover image updated for %s: %s", actual_slug, cover_url)
+        return cover_url
     except Exception as exc:
-        logger.warning("Cover image generation failed for %s: %s", slug, exc)
+        logger.warning("Cover image finalization failed for %s: %s", actual_slug, exc)
+        return None
 
 
 async def _run_trace(
@@ -438,13 +495,23 @@ async def stream_trace(
     log_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
 
     async def event_generator():
-        yield _sse_event("log", f"Starting {trace_type} trace for {url}...")
-
-        trace_task = asyncio.create_task(
-            _run_trace(url, trace_type, log_queue, max_depth=depth, max_children=max_children)
-        )
-
+        trace_task: Optional[asyncio.Task] = None
+        screenshot_task: Optional[asyncio.Task] = None
         try:
+            # Start screenshot immediately, in parallel with the trace.
+            # This way it runs during the graph-building work instead of after
+            preliminary_slug = _slugify(_extract_name_from_url(url, trace_type))
+            canonical_url = _canonical_source_url(url, trace_type)
+            screenshot_task = asyncio.create_task(
+                take_project_screenshot(preliminary_slug, canonical_url)
+            )
+
+            yield _sse_event("log", f"Starting {trace_type} trace for {url}...")
+
+            trace_task = asyncio.create_task(
+                _run_trace(url, trace_type, log_queue, max_depth=depth, max_children=max_children)
+            )
+
             while not trace_task.done():
                 try:
                     msg = await asyncio.wait_for(log_queue.get(), timeout=0.3)
@@ -461,11 +528,32 @@ async def stream_trace(
 
             slug = _slugify(result["name"])
             try:
-                project_dict = await asyncio.wait_for(_save_project(result), timeout=15.0)
+                project_dict = await _save_project(result)
+                actual_slug = project_dict.get("slug", slug)
+
+                # Check if screenshot finished during the trace
+                if screenshot_task.done():
+                    try:
+                        cover_url = await _apply_cover_image(
+                            screenshot_task, actual_slug, preliminary_slug,
+                        )
+                        if cover_url:
+                            project_dict["cover_image_url"] = cover_url
+                    except Exception as exc:
+                        logger.warning("Screenshot inline apply failed: %s", exc)
+                else:
+                    # Still running — finalize in background after it completes
+                    asyncio.create_task(
+                        _apply_cover_image(screenshot_task, actual_slug, preliminary_slug)
+                    )
+
                 yield _sse_event("result", project_dict)
-                slug = project_dict.get("slug", slug)
+
             except Exception as save_exc:
-                logger.warning("DB save failed, sending fallback result: %s", save_exc)
+                if screenshot_task and not screenshot_task.done():
+                    screenshot_task.cancel()
+                logger.warning("DB save failed (%s), sending fallback result: %s",
+                               type(save_exc).__name__, save_exc)
                 yield _sse_event(
                     "result",
                     {
@@ -490,10 +578,16 @@ async def stream_trace(
                     },
                 )
 
-            # Generate cover image in background (fire-and-forget)
-            asyncio.create_task(_generate_cover_image(slug))
-
+        except asyncio.CancelledError:
+            if trace_task and not trace_task.done():
+                trace_task.cancel()
+            if screenshot_task and not screenshot_task.done():
+                screenshot_task.cancel()
+            logger.info("SSE client disconnected, trace cancelled")
+            return
         except Exception as exc:
+            if screenshot_task and not screenshot_task.done():
+                screenshot_task.cancel()
             yield _sse_event("error", str(exc))
 
         yield _sse_event("done", "complete")

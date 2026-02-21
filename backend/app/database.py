@@ -1,10 +1,19 @@
-"""Async SQLAlchemy database engine/session management."""
+"""Async SQLAlchemy database engine/session management.
+
+Designed for Neon Postgres with PgBouncer (transaction mode):
+- NullPool: no client-side pooling — PgBouncer handles it
+- prepare_threshold=None: disable prepared statements (incompatible with
+  PgBouncer transaction mode)
+- pool_pre_ping: survive Neon scale-to-zero reconnects
+"""
 
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+import orjson
+import psycopg.types.json
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -13,8 +22,13 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 load_dotenv()
+
+# Use orjson for all psycopg3 JSONB encode/decode (6-10x faster than stdlib json)
+psycopg.types.json.set_json_dumps(lambda obj: orjson.dumps(obj).decode())
+psycopg.types.json.set_json_loads(orjson.loads)
 
 _RAW_DATABASE_URL = os.getenv("DATABASE_URL")
 if not _RAW_DATABASE_URL:
@@ -46,9 +60,12 @@ DATABASE_URL = _sanitize_database_url(_to_async_database_url(_RAW_DATABASE_URL))
 
 engine: AsyncEngine = create_async_engine(
     DATABASE_URL,
+    poolclass=NullPool,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    connect_args={
+        "prepare_threshold": None,
+        "connect_timeout": 30,
+    },
 )
 
 SessionLocal = async_sessionmaker(

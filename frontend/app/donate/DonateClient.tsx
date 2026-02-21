@@ -270,19 +270,21 @@ export default function DonateClient() {
     };
   }, []);
 
-  const stats = result
-    ? [
-        { label: "Deps", value: String(result.dependencies.length) },
-        { label: "Contributors", value: String(result.contributors) },
-        { label: "Nodes", value: String(result.graph_data.nodes.length) },
-        { label: "Depth", value: String(result.depth) },
-      ]
-    : [
-        { label: "Deps", value: "N/A" },
-        { label: "Contributors", value: "N/A" },
-        { label: "Nodes", value: String(graphData.nodes.length || "N/A") },
-        { label: "Depth", value: "N/A" },
-      ];
+  const nodeCount = result?.graph_data?.nodes?.length || graphData.nodes.length || 0;
+  const edgeCount = result?.graph_data?.edges?.length || graphData.edges.length || 0;
+  const contribCount = result?.contributors
+    || graphData.nodes.filter((n: { type: string }) => n.type === "CONTRIBUTOR").length
+    || 0;
+  const depCount = result?.dependencies?.length
+    || graphData.nodes.filter((n: { type: string }) => n.type === "BODY_OF_WORK").length
+    || 0;
+
+  const stats = [
+    { label: "Deps", value: depCount > 0 ? String(depCount) : "N/A" },
+    { label: "Contributors", value: contribCount > 0 ? String(contribCount) : "N/A" },
+    { label: "Nodes", value: nodeCount > 0 ? String(nodeCount) : "N/A" },
+    { label: "Depth", value: result ? String(result.depth) : (nodeCount > 0 ? String(edgeCount > 0 ? "—" : "N/A") : "N/A") },
+  ];
 
   return (
     <section className="relative w-full flex items-stretch flex-1">

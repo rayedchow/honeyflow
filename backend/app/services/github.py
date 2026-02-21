@@ -7,6 +7,7 @@ and detailed contributor stats.
 import asyncio
 import logging
 import re
+import time
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
@@ -23,6 +24,25 @@ _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 # Limit concurrent GitHub API requests to avoid ConnectTimeout errors
 _SEMAPHORE = asyncio.Semaphore(15)
 _CLIENT: Optional[httpx.AsyncClient] = None
+
+# Simple TTL cache: key -> (value, expiry_timestamp)
+_github_cache: Dict[str, Tuple[Any, float]] = {}
+_CACHE_TTL = 600  # 10 minutes
+
+
+def _cache_get(key: str) -> Optional[Any]:
+    entry = _github_cache.get(key)
+    if entry is None:
+        return None
+    value, expiry = entry
+    if time.monotonic() > expiry:
+        del _github_cache[key]
+        return None
+    return value
+
+
+def _cache_set(key: str, value: Any, ttl: Optional[float] = None) -> None:
+    _github_cache[key] = (value, time.monotonic() + (ttl or _CACHE_TTL))
 
 
 def _get_client() -> httpx.AsyncClient:
@@ -288,6 +308,15 @@ async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]
     Falls back to the simpler /contributors endpoint (commit counts only) if
     the stats endpoint keeps returning 202.
     """
+    cache_key = "stats:{}/{}".format(owner.lower(), repo.lower())
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        logger.info("GET  %s/%s stats/contributors (cache hit)", owner, repo)
+        return cached
+
+    # If GitHub was recently computing stats for this repo, skip retries
+    skip_retries = _cache_get("computing:" + cache_key) is not None
+
     stats_url = "{}/repos/{}/{}/stats/contributors".format(
         settings.github_api_base, owner, repo
     )
@@ -297,17 +326,21 @@ async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]
         client = _get_client()
         resp = await client.get(stats_url, headers=_headers())
 
-        retries = 3
-        while resp.status_code == 202 and retries > 0:
-            logger.info(
-                "     %s/%s GitHub is computing stats, waiting... (%d/3)",
-                owner,
-                repo,
-                4 - retries,
-            )
-            await asyncio.sleep(3)
-            resp = await client.get(stats_url, headers=_headers())
-            retries -= 1
+        if not skip_retries:
+            retries = 3
+            backoff = 1.5
+            while resp.status_code == 202 and retries > 0:
+                logger.info(
+                    "     %s/%s GitHub is computing stats, waiting %.1fs... (%d/3)",
+                    owner,
+                    repo,
+                    backoff,
+                    4 - retries,
+                )
+                await asyncio.sleep(backoff)
+                resp = await client.get(stats_url, headers=_headers())
+                retries -= 1
+                backoff *= 1.5
 
         if resp.status_code == 200:
             raw: List[Dict] = resp.json()
@@ -318,7 +351,12 @@ async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]
                     repo,
                     len(raw),
                 )
-                return _parse_detailed_stats(raw)
+                result = _parse_detailed_stats(raw)
+                _cache_set(cache_key, result)
+                return result
+
+        if resp.status_code == 202:
+            _cache_set("computing:" + cache_key, True, ttl=30)
 
         logger.info(
             "     %s/%s detailed stats not ready yet, using basic contributor list instead",
@@ -341,7 +379,7 @@ async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]
             return []
 
     data: List[Dict] = resp.json()
-    return [
+    result = [
         {
             "login": c["login"],
             "avatar_url": c.get("avatar_url", ""),
@@ -353,6 +391,8 @@ async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]
         for c in data
         if "[bot]" not in c.get("login", "")
     ]
+    _cache_set(cache_key, result)
+    return result
 
 
 def _parse_detailed_stats(raw: List[Dict]) -> List[Dict[str, Any]]:
@@ -391,6 +431,16 @@ async def fetch_contributor_commits(
     limit: int = 3,
 ) -> List[Dict[str, Any]]:
     """Fetch recent commits by a contributor, with code patches for the top commit."""
+    cache_key = "commits:{}/{}/{}:{}".format(
+        owner.lower(), repo.lower(), login.lower(), limit
+    )
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        logger.info(
+            "GET  %s/%s commits?author=%s (cache hit)", owner, repo, login
+        )
+        return cached
+
     base = settings.github_api_base
     list_url = "{}/repos/{}/{}/commits".format(base, owner, repo)
 
@@ -466,6 +516,7 @@ async def fetch_contributor_commits(
         logger.info(
             "     %s/%s got %d commits for %s", owner, repo, len(results), login,
         )
+        _cache_set(cache_key, results)
         return results
 
 

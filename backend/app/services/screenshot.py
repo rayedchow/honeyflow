@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -12,9 +11,6 @@ logger = logging.getLogger(__name__)
 
 # Directory where cover images are stored
 COVERS_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "covers"
-
-# Frontend base URL (the Next.js app)
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # Viewport for OG-compatible images
 VIEWPORT_WIDTH = 1200
@@ -57,15 +53,14 @@ async def close_browser() -> None:
     logger.info("Playwright browser closed")
 
 
-async def take_project_screenshot(slug: str) -> Optional[str]:
-    """Navigate to /explore/{slug}, wait for graph render, save screenshot.
+async def take_project_screenshot(slug: str, source_url: str) -> Optional[str]:
+    """Navigate to the project's source URL, screenshot the page.
 
     Returns the URL path (e.g. "/static/covers/{slug}.png") on success,
     or None on failure.
     """
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     output_path = COVERS_DIR / "{}.png".format(slug)
-    page_url = "{}/explore/{}".format(FRONTEND_URL, slug)
 
     try:
         browser = await _get_browser()
@@ -76,13 +71,13 @@ async def take_project_screenshot(slug: str) -> Optional[str]:
         page = await context.new_page()
 
         try:
-            await page.goto(page_url, wait_until="networkidle", timeout=30000)
+            # Use domcontentloaded instead of networkidle — sites like
+            # GitHub have continuous background requests that prevent
+            # networkidle from ever firing within the timeout.
+            await page.goto(source_url, wait_until="domcontentloaded", timeout=45000)
 
-            # Wait for the ForceGraph canvas to appear
-            await page.wait_for_selector("canvas", timeout=15000)
-
-            # Let the force simulation settle
-            await page.wait_for_timeout(4000)
+            # Give JS-rendered content time to paint
+            await page.wait_for_timeout(3000)
 
             await page.screenshot(path=str(output_path), type="png")
             logger.info("Screenshot saved: %s", output_path)

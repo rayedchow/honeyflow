@@ -181,6 +181,90 @@ export async function fetchJuryQuestions(count = 5): Promise<JuryQuestion[]> {
   return data.questions ?? [];
 }
 
+export interface JuryStreamCallbacks {
+  onProgress: (data: unknown) => void;
+  onQuestions: (questions: JuryQuestion[]) => void;
+  onDone: () => void;
+  onError: (message: string) => void;
+}
+
+export function streamJuryQuestions(
+  count: number,
+  callbacks: JuryStreamCallbacks,
+): AbortController {
+  const controller = new AbortController();
+  const params = new URLSearchParams({ count: String(count) });
+
+  fetch(`${API_BASE}/jury/questions/stream?${params}`, {
+    signal: controller.signal,
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        callbacks.onError(`Server returned ${res.status}`);
+        return;
+      }
+      const reader = res.body?.getReader();
+      if (!reader) {
+        callbacks.onError("No response body");
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let currentEvent = "";
+      let currentData = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            currentData = line.slice(6);
+          } else if (line === "" && currentEvent) {
+            try {
+              switch (currentEvent) {
+                case "progress":
+                  callbacks.onProgress(JSON.parse(currentData));
+                  break;
+                case "questions":
+                  callbacks.onQuestions(
+                    JSON.parse(currentData).questions ?? [],
+                  );
+                  break;
+                case "done":
+                  callbacks.onDone();
+                  break;
+                case "error":
+                  callbacks.onError(JSON.parse(currentData));
+                  break;
+              }
+            } catch {
+              if (currentEvent === "progress") {
+                callbacks.onProgress(currentData);
+              }
+            }
+            currentEvent = "";
+            currentData = "";
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      if (err.name !== "AbortError") {
+        callbacks.onError(err.message);
+      }
+    });
+
+  return controller;
+}
+
 export async function submitJuryAnswers(
   walletAddress: string,
   answers: SubmitJuryAnswer[],

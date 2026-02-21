@@ -1,43 +1,122 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import Link from 'next/link';
+import useSWR from 'swr';
+import { fetchProjects } from '@/lib/api';
+import { typeConfig } from '@/components/ui/TypeIcons';
+import type { Project } from '@/lib/types';
 
-const projects = [
-    {
-        title: 'SwarmSearch',
-        description: 'Autonomous research agent that crawls academic papers, synthesizes findings, and generates literature reviews.',
-        href: '#',
-    },
-    {
-        title: 'HiveMind CRM',
-        description: 'AI sales agent that qualifies leads, schedules demos, and follows up via email and Slack.',
-        href: '#',
-    },
-    {
-        title: 'PollenTracker',
-        description: 'Real-time market intelligence agent monitoring competitor pricing, news, and social sentiment.',
-        href: '#',
-    },
-    {
-        title: 'NectarCode',
-        description: 'Code review agent that catches bugs, suggests improvements, and auto-generates test cases from PRs.',
-        href: '#',
-    },
-    {
-        title: 'WaxSeal',
-        description: 'Compliance agent that audits documents, flags regulatory issues, and auto-generates reports.',
-        href: '#',
-    },
-    {
-        title: 'DroneDeploy',
-        description: 'Multi-agent orchestrator that spins up specialized sub-agents for multi-step workflows.',
-        href: '#',
-    },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+const fetcher = () => fetchProjects().then((d) => d.projects);
+
+function SkeletonCard() {
+    return (
+        <div className="flex flex-col shrink-0 w-[300px] border border-agentbase-border bg-agentbase-card overflow-hidden animate-pulse">
+            <div className="relative w-full h-40 bg-agentbase-border/30 flex items-center justify-center">
+                <svg className="w-6 h-6 text-agentbase-muted animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+            </div>
+            <div className="p-6 flex flex-col gap-4 flex-1">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-agentbase-border/40 rounded" />
+                    <div className="flex-1 min-w-0 space-y-2">
+                        <div className="h-4 bg-agentbase-border/40 rounded w-3/4" />
+                        <div className="h-3 bg-agentbase-border/40 rounded w-1/2" />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <div className="h-3 bg-agentbase-border/40 rounded w-full" />
+                    <div className="h-3 bg-agentbase-border/40 rounded w-2/3" />
+                </div>
+                <div className="flex items-center gap-3 pt-3 border-t border-agentbase-border mt-auto">
+                    <div className="h-6 bg-agentbase-border/40 rounded w-20" />
+                    <div className="h-3 bg-agentbase-border/40 rounded w-24" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ShowcaseCard({ project }: { project: Project }) {
+    const typeKey = project.type as keyof typeof typeConfig;
+    const { Icon } = typeConfig[typeKey] || typeConfig['repo'];
+    const [imgLoaded, setImgLoaded] = useState(false);
+    const raised =
+        typeof project.raised === 'number'
+            ? `$${project.raised.toLocaleString()}`
+            : project.raised || '$0';
+
+    return (
+        <Link
+            href={`/explore/${project.slug}`}
+            className="group flex flex-col shrink-0 w-[300px] border border-agentbase-border bg-agentbase-card hover:bg-agentbase-cardHover transition-colors overflow-hidden"
+            style={{ scrollSnapAlign: 'start' }}
+        >
+            {project.cover_image_url && (
+                <div className="relative w-full h-40 overflow-hidden bg-agentbase-border/30">
+                    {!imgLoaded && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-agentbase-muted animate-spin" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                        </div>
+                    )}
+                    <img
+                        src={`${API_BASE}${project.cover_image_url}`}
+                        alt={`${project.name} cover`}
+                        className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                        onLoad={() => setImgLoaded(true)}
+                    />
+                </div>
+            )}
+            <div className="p-6 flex flex-col gap-4 flex-1">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 border border-agentbase-border flex items-center justify-center text-agentbase-muted group-hover:text-agentbase-cyan transition-colors shrink-0">
+                        <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <h3 className="text-base font-bold tracking-tight text-agentbase-text truncate">
+                            {project.name}
+                        </h3>
+                        <p className="text-[11px] text-agentbase-muted uppercase tracking-widest font-mono mt-0.5">
+                            {project.category}
+                        </p>
+                    </div>
+                </div>
+
+                <p className="text-sm text-agentbase-muted leading-relaxed line-clamp-2">
+                    {project.summary}
+                </p>
+
+                <div className="flex items-center gap-3 pt-3 border-t border-agentbase-border mt-auto">
+                    <span className="inline-flex px-2.5 py-1 bg-agentbase-badgeBg text-agentbase-badgeText text-[11px] font-mono font-bold tracking-wide">
+                        {raised} raised
+                    </span>
+                    <span className="text-[11px] text-agentbase-muted">
+                        {project.contributors} contributors
+                    </span>
+                </div>
+            </div>
+        </Link>
+    );
+}
 
 export default function ProjectShowcase() {
     const scrollRef = useRef<HTMLDivElement>(null);
+    const { data: projects = [], isLoading } = useSWR('showcase-projects', fetcher, {
+        revalidateOnFocus: false,
+        dedupingInterval: 60_000,
+    });
+
+    // Sort by raised descending and take top 6
+    const top = [...projects]
+        .sort((a, b) => (b.raised ?? 0) - (a.raised ?? 0))
+        .slice(0, 6);
 
     const scrollRight = () => {
         if (!scrollRef.current) return;
@@ -57,28 +136,30 @@ export default function ProjectShowcase() {
                         Built with HoneyFlow
                     </h2>
                     <p className="text-lg text-agentbase-muted">
-                        See what the swarm is shipping in production
+                        Top funded projects traced by the community
                     </p>
                 </div>
-                <button
-                    onClick={scrollRight}
-                    className="shrink-0 w-12 h-12 rounded-full border border-agentbase-border bg-agentbase-card flex items-center justify-center hover:bg-agentbase-pillBg hover:text-agentbase-pillText hover:border-agentbase-pillBg transition-colors group"
-                    aria-label="Scroll right"
-                >
-                    <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                {top.length > 0 && (
+                    <button
+                        onClick={scrollRight}
+                        className="shrink-0 w-12 h-12 rounded-full border border-agentbase-border bg-agentbase-card flex items-center justify-center hover:bg-agentbase-pillBg hover:text-agentbase-pillText hover:border-agentbase-pillBg transition-colors group"
+                        aria-label="Scroll right"
                     >
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                    </svg>
-                </button>
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                        </svg>
+                    </button>
+                )}
             </div>
 
             <div
@@ -86,28 +167,11 @@ export default function ProjectShowcase() {
                 className="flex gap-5 overflow-x-auto px-8 pb-4 scrollbar-hide"
                 style={{ scrollSnapType: 'x mandatory', scrollPaddingInline: '2rem', WebkitOverflowScrolling: 'touch' }}
             >
-                {projects.map((project, i) => (
-                    <Link
-                        key={project.title}
-                        href={project.href}
-                        className={`group flex flex-col shrink-0 w-[300px] border border-agentbase-border bg-agentbase-card p-6${i === 0 ? ' ml-0' : ''}`}
-                        style={{ scrollSnapAlign: 'start' }}
-                    >
-                        <h3 className="text-lg font-bold tracking-tight text-agentbase-yellow mb-2">
-                            {project.title}
-                        </h3>
-                        <p className="text-sm text-agentbase-muted leading-relaxed mb-5">
-                            {project.description}
-                        </p>
-                        <span className="mt-auto text-sm font-semibold text-agentbase-text flex items-center gap-1.5">
-                            View Project
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                                <polyline points="12 5 19 12 12 19" />
-                            </svg>
-                        </span>
-                    </Link>
-                ))}
+                {isLoading
+                    ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+                    : top.map((project) => (
+                          <ShowcaseCard key={project.slug} project={project} />
+                      ))}
             </div>
         </section>
     );

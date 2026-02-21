@@ -49,25 +49,30 @@ function computeDepths(
 
 /* ── Honeycomb yellow gradient ────────────────────────────────────────── */
 // Deep amber at center → pale yellow at edges
-const HONEY_SHADES = ["#FFCC4D", "#FFD666", "#FFE599", "#FFF2CC", "#FFF8D0"];
-const HONEY_STROKES = ["#E6B330", "#E6BF4D", "#E6CF80", "#E6DCA8", "#E6E0B8"];
+const HONEY_SHADES_LIGHT = ["#FFCC4D", "#FFD666", "#FFE599", "#FFF2CC", "#FFF8D0"];
+const HONEY_STROKES_LIGHT = ["#E6B330", "#E6BF4D", "#E6CF80", "#E6DCA8", "#E6E0B8"];
 
-function honeycombFill(depth: number, maxDepth: number): string {
+const HONEY_SHADES_DARK = ["#B8860B", "#9A7209", "#7D5E08", "#604A06", "#443605"];
+const HONEY_STROKES_DARK = ["#D4A017", "#C49315", "#A67C12", "#88660F", "#6B500C"];
+
+function honeycombFill(depth: number, maxDepth: number, isDark: boolean): string {
+  const shades = isDark ? HONEY_SHADES_DARK : HONEY_SHADES_LIGHT;
   const t = maxDepth > 0 ? Math.min(depth / maxDepth, 1) : 0;
   const idx = Math.min(
-    Math.floor(t * (HONEY_SHADES.length - 1)),
-    HONEY_SHADES.length - 1,
+    Math.floor(t * (shades.length - 1)),
+    shades.length - 1,
   );
-  return HONEY_SHADES[idx];
+  return shades[idx];
 }
 
-function honeycombStroke(depth: number, maxDepth: number): string {
+function honeycombStroke(depth: number, maxDepth: number, isDark: boolean): string {
+  const strokes = isDark ? HONEY_STROKES_DARK : HONEY_STROKES_LIGHT;
   const t = maxDepth > 0 ? Math.min(depth / maxDepth, 1) : 0;
   const idx = Math.min(
-    Math.floor(t * (HONEY_STROKES.length - 1)),
-    HONEY_STROKES.length - 1,
+    Math.floor(t * (strokes.length - 1)),
+    strokes.length - 1,
   );
-  return HONEY_STROKES[idx];
+  return strokes[idx];
 }
 
 /* ── Hex path helper ──────────────────────────────────────────────────── */
@@ -115,6 +120,7 @@ export default function ForceGraph({
   const [containerWidth, setContainerWidth] = useState(width || 600);
   const [containerHeight, setContainerHeight] = useState(height || 400);
   const [palette, setPalette] = useState<GraphPalette>(DEFAULT_PALETTE);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -130,10 +136,13 @@ export default function ForceGraph({
   }, [width, height]);
 
   useEffect(() => {
-    const updatePalette = () => setPalette(readPaletteFromCssVars());
-    updatePalette();
+    const update = () => {
+      setPalette(readPaletteFromCssVars());
+      setIsDark(document.documentElement.classList.contains("dark"));
+    };
+    update();
 
-    const observer = new MutationObserver(updatePalette);
+    const observer = new MutationObserver(update);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class", "style"],
@@ -145,9 +154,16 @@ export default function ForceGraph({
   const RING_SPACING = 70;
 
   const { data, depthMap, maxDepth } = useMemo(() => {
+    // Build set of valid node IDs so we can drop orphan edges
+    const nodeIds = new Set(graphData.nodes.map((n) => n.id));
+
+    const safeEdges = graphData.edges.filter(
+      (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
+    );
+
     const { depthMap, maxDepth } = computeDepths(
       graphData.nodes,
-      graphData.edges,
+      safeEdges,
     );
 
     // Seed initial positions on target rings for fast convergence
@@ -165,7 +181,7 @@ export default function ForceGraph({
         y: radius * Math.sin(angle),
       };
     });
-    const links = graphData.edges.map((e) => ({
+    const links = safeEdges.map((e) => ({
       source: e.source,
       target: e.target,
       weight: e.weight,
@@ -228,9 +244,9 @@ export default function ForceGraph({
 
       // Hexagon fill + stroke by depth
       hexPath(ctx, node.x, node.y, r);
-      ctx.fillStyle = honeycombFill(depth, maxDepth);
+      ctx.fillStyle = honeycombFill(depth, maxDepth, isDark);
       ctx.fill();
-      ctx.strokeStyle = honeycombStroke(depth, maxDepth);
+      ctx.strokeStyle = honeycombStroke(depth, maxDepth, isDark);
       ctx.lineWidth = 1.5 / globalScale;
       ctx.stroke();
 
@@ -240,12 +256,13 @@ export default function ForceGraph({
         ctx.font = `bold ${fontSize}px monospace`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        ctx.fillStyle =
-          depth <= 1 ? "rgba(80,50,0,0.85)" : "rgba(120,90,20,0.6)";
+        ctx.fillStyle = isDark
+          ? (depth <= 1 ? "rgba(234,234,234,0.9)" : "rgba(200,200,200,0.6)")
+          : (depth <= 1 ? "rgba(80,50,0,0.85)" : "rgba(120,90,20,0.6)");
         ctx.fillText(label, node.x, node.y + r + 2);
       }
     },
-    [depthMap, maxDepth],
+    [depthMap, maxDepth, isDark],
   );
 
   return (
@@ -263,7 +280,7 @@ export default function ForceGraph({
           ctx.fillStyle = color;
           ctx.fill();
         }}
-        linkColor={() => "rgba(120,120,120,0.35)"}
+        linkColor={() => isDark ? "rgba(200,200,200,0.25)" : "rgba(120,120,120,0.35)"}
         linkWidth={() => 0.5}
         linkDirectionalParticles={0}
         d3AlphaDecay={0.02}

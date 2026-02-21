@@ -41,7 +41,6 @@ export default function FundingCycle({
   projectSlug,
 }: {
   projectSlug: string;
-  showUsd: boolean;
 }) {
   /* ── Cycle progress ─────────────────────────────────────────────────── */
   const startStr = CYCLE_STARTS[projectSlug] || DEFAULT_START;

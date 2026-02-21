@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { getProjectBySlug } from "@/lib/projects";
 import Footer from "@/components/layout/Footer";
 import ProjectDetailClient from "./ProjectDetailClient";
 
@@ -25,7 +23,6 @@ async function fetchProjectFromApi(slug: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
 
-  // Try API first, then static
   const apiProject = await fetchProjectFromApi(slug);
   if (apiProject) {
     return {
@@ -34,63 +31,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const staticProject = getProjectBySlug(slug);
-  if (staticProject) {
-    return {
-      title: `${staticProject.name} — HoneyFlow`,
-      description: staticProject.summary,
-    };
-  }
-
-  return { title: "Not Found — HoneyFlow" };
+  return { title: "Loading — HoneyFlow" };
 }
 
 export default async function ProjectPage({ params }: Props) {
   const { slug } = await params;
 
-  // Try API first
   const apiProject = await fetchProjectFromApi(slug);
-  if (apiProject) {
-    return (
-      <>
-        <main className="flex-col flex w-full flex-1">
-          <ProjectDetailClient project={apiProject} source="api" />
-        </main>
-        <Footer />
-      </>
-    );
-  }
-
-  // Fall back to static data
-  const staticProject = getProjectBySlug(slug);
-  if (!staticProject) notFound();
-
-  // Convert static project to API-compatible shape
-  const project = {
-    id: 0,
-    slug: staticProject.slug,
-    name: staticProject.name,
-    category: staticProject.category,
-    type: staticProject.type,
-    summary: staticProject.summary,
-    description: staticProject.description,
-    source_url: "",
-    raised: staticProject.raisedNumeric,
-    contributors: staticProject.contributors,
-    depth: staticProject.depth,
-    graph_data: { nodes: [], edges: [] },
-    attribution: {},
-    dependencies: staticProject.dependencies,
-    top_contributors: staticProject.topContributors,
-    cover_image_url: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
 
   return (
     <>
       <main className="flex-col flex w-full flex-1">
-        <ProjectDetailClient project={project} source="static" />
+        <ProjectDetailClient project={apiProject} slug={slug} source="api" />
       </main>
       <Footer />
     </>

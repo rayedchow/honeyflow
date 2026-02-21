@@ -2,13 +2,9 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import useSWR from "swr";
 import { fetchProjects } from "@/lib/api";
-import {
-  trendingProjects,
-  newProjects,
-  type Project as StaticProject,
-} from "@/lib/projects";
 import { typeConfig } from "@/components/ui/TypeIcons";
 import type { Project } from "@/lib/types";
 
@@ -72,7 +68,7 @@ function FilterDropdown({
   );
 }
 
-// ── Project card (works with both API and static projects) ───────────────────
+// ── Project card ──────────────────────────────────────────────────────────────
 
 type CardProject = {
   slug: string;
@@ -85,6 +81,8 @@ type CardProject = {
   cover_image_url?: string | null;
 };
 
+const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 function ProjectCard({ project }: { project: CardProject }) {
   const typeKey = project.type as keyof typeof typeConfig;
   const { Icon } = typeConfig[typeKey] || typeConfig["repo"];
@@ -92,51 +90,84 @@ function ProjectCard({ project }: { project: CardProject }) {
     ? `$${project.raised.toLocaleString()}`
     : project.raised || "$0";
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const hasCover = !!project.cover_image_url;
 
   return (
     <Link
       href={`/explore/${project.slug}`}
       className="group border border-agentbase-border bg-agentbase-card flex flex-col hover:bg-agentbase-cardHover transition-colors overflow-hidden"
     >
-      {project.cover_image_url && (
-        <div className="w-full h-40 overflow-hidden">
-          <img
+      {hasCover && (
+        <div className="relative w-full h-36 overflow-hidden bg-agentbase-canvasBg">
+          <Image
             src={`${apiBase}${project.cover_image_url}`}
             alt={`${project.name} graph`}
-            className="w-full h-full object-cover"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover"
+            loading="lazy"
           />
         </div>
       )}
-      <div className="p-6 flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 border border-agentbase-border flex items-center justify-center text-agentbase-muted group-hover:text-agentbase-cyan transition-colors shrink-0">
-          <Icon className="w-5 h-5" />
+      <div className="px-4 py-3 flex flex-col gap-2.5 flex-1">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 border border-agentbase-border flex items-center justify-center text-agentbase-muted group-hover:text-agentbase-cyan transition-colors shrink-0">
+            <Icon className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold tracking-tight text-agentbase-text truncate">
+              {project.name}
+            </h3>
+            <p className="text-[10px] text-agentbase-muted uppercase tracking-widest font-mono">
+              {project.category}
+            </p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <h3 className="text-base font-bold tracking-tight text-agentbase-text truncate">
-            {project.name}
-          </h3>
-          <p className="text-[11px] text-agentbase-muted uppercase tracking-widest font-mono mt-0.5">
-            {project.category}
-          </p>
-        </div>
+
+        <p className="text-[13px] text-agentbase-muted leading-relaxed line-clamp-2">
+          {project.summary}
+        </p>
       </div>
 
-      <p className="text-sm text-agentbase-muted leading-relaxed line-clamp-2">
-        {project.summary}
-      </p>
-
-      <div className="flex items-center gap-3 pt-3 border-t border-agentbase-border">
-        <span className="inline-flex px-2.5 py-1 bg-agentbase-badgeBg text-agentbase-badgeText text-[11px] font-mono font-bold tracking-wide">
-          {raised} raised
-        </span>
-        <span className="text-[11px] text-agentbase-muted">
-          {project.contributors} contributors
-        </span>
-      </div>
+      <div className="border-t border-agentbase-border">
+        <div className="px-4 py-2.5 flex items-center gap-3">
+          <span className="inline-flex px-2 py-0.5 bg-agentbase-badgeBg text-agentbase-badgeText text-[11px] font-mono font-bold tracking-wide">
+            {raised} raised
+          </span>
+          <span className="text-[11px] text-agentbase-muted">
+            {project.contributors} contributors
+          </span>
+        </div>
       </div>
     </Link>
+  );
+}
+
+// ── Skeleton card ─────────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="border border-agentbase-border bg-agentbase-card flex flex-col overflow-hidden animate-pulse">
+      <div className="w-full h-36 bg-agentbase-canvasBg" />
+      <div className="px-4 py-3 flex flex-col gap-2.5 flex-1">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-agentbase-canvasBg shrink-0" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-4 bg-agentbase-canvasBg w-3/4" />
+            <div className="h-3 bg-agentbase-canvasBg w-1/3" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <div className="h-3 bg-agentbase-canvasBg w-full" />
+          <div className="h-3 bg-agentbase-canvasBg w-2/3" />
+        </div>
+      </div>
+      <div className="border-t border-agentbase-border">
+        <div className="px-4 py-2.5">
+          <div className="h-4 bg-agentbase-canvasBg w-1/2" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -151,15 +182,24 @@ export default function ExploreClient({
   const [sectorFilter, setSectorFilter] = useState("All Sectors");
   const [search, setSearch] = useState("");
 
-  const { data: apiProjects = [], isLoading } = useSWR("projects", fetcher, {
+  const {
+    data: apiProjects = [],
+    error,
+    isLoading,
+    isValidating,
+    mutate,
+  } = useSWR("projects", fetcher, {
     fallbackData: initialProjects,
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
     dedupingInterval: 30_000,
-    keepPreviousData: true,
+    refreshInterval: 60_000,
   });
 
-  const loading = isLoading && apiProjects.length === 0;
+  // True only when we have zero data to show (first load with no SSR data)
+  const showSkeleton = isLoading && apiProjects.length === 0;
+  // True when refreshing in the background (data already displayed)
+  const isRefreshing = isValidating && apiProjects.length > 0;
 
   const typeOptions = [
     { value: "all", label: "All Types" },
@@ -169,9 +209,6 @@ export default function ExploreClient({
   ];
 
   const sectorOptions = allSectors.map((s) => ({ value: s, label: s }));
-
-  // Combine static (demo) projects with API projects
-  const allStaticProjects = [...trendingProjects, ...newProjects];
 
   const filterProjects = useCallback((list: CardProject[]) =>
     list.filter((p) => {
@@ -187,8 +224,7 @@ export default function ExploreClient({
     }), [typeFilter, sectorFilter, search]);
 
   const filteredApi = filterProjects(apiProjects);
-  const filteredStatic = filterProjects(allStaticProjects);
-  const noResults = filteredApi.length === 0 && filteredStatic.length === 0;
+  const noResults = !showSkeleton && filteredApi.length === 0;
 
   return (
     <div className="px-8 pt-12 pb-20">
@@ -245,55 +281,76 @@ export default function ExploreClient({
       </div>
 
       {/* Traced Projects (from API) */}
-      {(filteredApi.length > 0 || loading) && (
-        <section className="mb-14">
-          <div className="mb-5">
-            <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
-              Traced by community
-            </p>
+      <section className="mb-14">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted">
+                Traced by community
+              </p>
+              {isRefreshing && (
+                <svg className="animate-spin h-3 w-3 text-agentbase-muted" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+            </div>
             <h2 className="text-2xl font-bold tracking-tighter text-agentbase-text">
               Live Projects
             </h2>
           </div>
-          {loading && filteredApi.length === 0 ? (
-            <div className="flex items-center justify-center py-16 border border-agentbase-border bg-agentbase-card">
-              <svg className="animate-spin h-5 w-5 text-agentbase-muted mr-3" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span className="text-sm text-agentbase-muted font-mono">Loading live projects...</span>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredApi.map((project) => (
-                <ProjectCard key={project.slug} project={project} />
-              ))}
-            </div>
+          {error && !showSkeleton && (
+            <button
+              onClick={() => mutate()}
+              className="text-[11px] font-mono text-agentbase-muted hover:text-agentbase-text border border-agentbase-border px-3 py-1.5 transition-colors"
+            >
+              Retry
+            </button>
           )}
-        </section>
-      )}
+        </div>
 
-      {/* Static/Demo Projects */}
-      {filteredStatic.length > 0 && (
-        <section>
-          <div className="mb-5">
-            <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1.5">
-              Featured
-            </p>
-            <h2 className="text-2xl font-bold tracking-tighter text-agentbase-text">
-              Demo Projects
-            </h2>
+        {/* Error banner */}
+        {error && apiProjects.length > 0 && (
+          <div className="mb-4 px-4 py-2.5 border border-red-500/30 bg-red-500/5 text-[13px] text-red-400 font-mono flex items-center justify-between">
+            <span>Failed to refresh — showing cached data</span>
+            <button onClick={() => mutate()} className="underline hover:text-red-300 transition-colors">
+              Retry
+            </button>
           </div>
+        )}
+
+        {showSkeleton ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredStatic.map((project) => (
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : error && apiProjects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 border border-agentbase-border bg-agentbase-card text-center">
+            <p className="text-agentbase-text text-[15px] font-bold mb-1">
+              Failed to load projects
+            </p>
+            <p className="text-agentbase-muted text-[13px] mb-4">
+              {error.message || "Something went wrong"}
+            </p>
+            <button
+              onClick={() => mutate()}
+              className="text-[12px] font-mono text-agentbase-muted hover:text-agentbase-text border border-agentbase-border px-4 py-2 transition-colors"
+            >
+              Try again
+            </button>
+          </div>
+        ) : filteredApi.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredApi.map((project) => (
               <ProjectCard key={project.slug} project={project} />
             ))}
           </div>
-        </section>
-      )}
+        ) : null}
+      </section>
 
-      {/* Empty state */}
-      {noResults && !loading && (
+      {/* Empty state (filters returned nothing) */}
+      {noResults && !error && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-12 h-12 border border-agentbase-border flex items-center justify-center mb-4">
             <svg

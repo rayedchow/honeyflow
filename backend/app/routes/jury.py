@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import json
 import logging
 import random
 import re
@@ -9,7 +10,9 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.orm import load_only
 
 from app.database import get_session, session_scope
 from app.models.edge_vote import EdgeVote
@@ -460,28 +463,65 @@ def _top_contributors(attribution: Dict[str, float]) -> List[Dict[str, str]]:
 
 
 # ---------------------------------------------------------------------------
-# GET /jury/questions
+# Shared helpers for question generation
 # ---------------------------------------------------------------------------
 
 
-@router.get("/questions", response_model=JuryQuestionsResponse)
-async def get_jury_questions(
-    count: int = Query(5, ge=1, le=7),
-):
-    candidates: List[JuryQuestion] = []
+async def _fetch_candidate_edges(
+    count: int,
+) -> Tuple[list, list[Tuple], list[Tuple]]:
+    """Two-phase DB fetch: lightweight metadata first, then graph_data for a subset.
 
+    Returns (projects, proj_cache, edge_refs)
+    """
+    # Phase 1: lightweight columns only (no graph_data JSONB)
+    _light_cols = load_only(
+        Project.id, Project.name, Project.slug, Project.source_url,
+        Project.summary, Project.description, Project.type,
+    )
     async with get_session() as session:
-        projects = (
+        light_projects = (
             (
                 await session.execute(
-                    select(Project).order_by(Project.created_at.desc()).limit(80)
+                    select(Project)
+                    .options(_light_cols)
+                    .order_by(Project.created_at.desc())
+                    .limit(30)
                 )
             )
             .scalars()
             .all()
         )
 
-    random.shuffle(projects)
+    if not light_projects:
+        return [], [], []
+
+    # Pick a small random subset to actually load graph_data for
+    random.shuffle(light_projects)
+    pick_count = min(8, len(light_projects))
+    picked_ids = [p.id for p in light_projects[:pick_count]]
+
+    _graph_cols = load_only(
+        Project.id, Project.name, Project.slug, Project.source_url,
+        Project.summary, Project.description, Project.type,
+        Project.graph_data,
+    )
+    async with get_session() as session:
+        projects = (
+            (
+                await session.execute(
+                    select(Project)
+                    .options(_graph_cols)
+                    .where(Project.id.in_(picked_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    # Scan edges
+    edge_refs: list[Tuple] = []
+    proj_cache: list[Tuple] = []
 
     for project in projects:
         graph_data = project.graph_data or {}
@@ -489,18 +529,64 @@ async def get_jury_questions(
         edges = graph_data.get("edges") or []
         if not nodes or not edges:
             continue
-
         node_by_id = _node_lookup(nodes)
+        proj_cache.append((project, nodes, edges, node_by_id))
+
+        for ei, edge in enumerate(edges):
+            source_id = edge.get("source")
+            target_id = edge.get("target")
+            if not source_id or not target_id:
+                continue
+            source_node = node_by_id.get(source_id)
+            target_node = node_by_id.get(target_id)
+            if not source_node or not target_node:
+                continue
+            source_type = str(source_node.get("type", ""))
+            target_type = str(target_node.get("type", ""))
+            target_label = str(target_node.get("label", target_id))
+            q_type = _question_type(source_type, target_type, target_label)
+            if not q_type:
+                continue
+            ai_weight = _clamp01(_safe_float(edge.get("weight"), 0.0))
+            if ai_weight < 0.05:
+                continue
+            edge_refs.append((len(proj_cache) - 1, ei))
+
+    return projects, proj_cache, edge_refs
+
+
+def _build_questions_from_refs(
+    chosen: list[Tuple],
+    proj_cache: list[Tuple],
+) -> List[JuryQuestion]:
+    """Build full JuryQuestion objects from lightweight edge references."""
+    questions: List[JuryQuestion] = []
+    for cache_idx, edge_idx in chosen:
+        project, nodes, edges, node_by_id = proj_cache[cache_idx]
+        edge = edges[edge_idx]
+
+        source_id = edge.get("source")
+        target_id = edge.get("target")
+        source_node = node_by_id.get(source_id)
+        target_node = node_by_id.get(target_id)
+        source_type = str(source_node.get("type", ""))
+        target_type = str(target_node.get("type", ""))
+        target_label = str(target_node.get("label", target_id))
+        q_type = _question_type(source_type, target_type, target_label)
+        ai_weight = _clamp01(_safe_float(edge.get("weight"), 0.0))
+
+        question_key = "{}:{}->{}".format(project.id, source_id, target_id)
+        question_id = hashlib.sha1(
+            question_key.encode("utf-8")
+        ).hexdigest()[:16]
 
         root_meta: Dict[str, Any] = {}
         for node in nodes:
             if node.get("type") in ("REPO", "PACKAGE", "PAPER"):
                 root_meta = node.get("metadata") or {}
                 break
-
         ai_purpose = str(root_meta.get("purpose", "")).strip()
         tech_stack = root_meta.get("tech_stack")
-
         desc_parts: list[str] = []
         if ai_purpose:
             desc_parts.append(ai_purpose)
@@ -518,76 +604,166 @@ async def get_jury_questions(
             )
         project_desc = " ".join(desc_parts)
 
-        for edge in edges:
-            source_id = edge.get("source")
-            target_id = edge.get("target")
-            if not source_id or not target_id:
-                continue
+        prompt = _build_prompt(q_type, project.name, target_label)
+        peers = _build_peers(edge, edges, node_by_id, q_type)
+        peer_rank = next(
+            (i + 1 for i, p in enumerate(peers) if p.is_subject), 0
+        )
+        subject_summary = _build_subject_summary(
+            target_node, edge, q_type, peer_rank, len(peers),
+        )
+        links = _build_links(project, source_node, target_node, q_type)
 
-            source_node = node_by_id.get(source_id)
-            target_node = node_by_id.get(target_id)
-            if not source_node or not target_node:
-                continue
-
-            source_type = str(source_node.get("type", ""))
-            target_type = str(target_node.get("type", ""))
-            target_label = str(target_node.get("label", target_id))
-
-            q_type = _question_type(source_type, target_type, target_label)
-            if not q_type:
-                continue
-
-            ai_weight = _clamp01(_safe_float(edge.get("weight"), 0.0))
-            if ai_weight < 0.05:
-                continue
-
-            question_key = "{}:{}->{}".format(project.id, source_id, target_id)
-            question_id = hashlib.sha1(question_key.encode("utf-8")).hexdigest()[:16]
-
-            prompt = _build_prompt(q_type, project.name, target_label)
-            peers = _build_peers(edge, edges, node_by_id, q_type)
-            peer_rank = next((i + 1 for i, p in enumerate(peers) if p.is_subject), 0)
-            subject_summary = _build_subject_summary(
-                target_node,
-                edge,
-                q_type,
-                peer_rank,
-                len(peers),
+        questions.append(
+            JuryQuestion(
+                question_id=question_id,
+                prompt=prompt,
+                project_name=project.name,
+                project_id=project.id,
+                project_slug=project.slug,
+                project_description=project_desc[:300],
+                project_url=project.source_url,
+                subject_name=target_label,
+                subject_summary=subject_summary,
+                peers=peers[:15],
+                total_peers=len(peers),
+                links=links,
+                edge=JuryEdgeRef(
+                    source_id=source_id,
+                    target_id=target_id,
+                    ai_weight=round(ai_weight, 6),
+                    ai_percentage=round(ai_weight * 100, 2),
+                    question_type=q_type,
+                ),
             )
-            links = _build_links(project, source_node, target_node, q_type)
+        )
+    return questions
 
-            candidates.append(
-                JuryQuestion(
-                    question_id=question_id,
-                    prompt=prompt,
-                    project_name=project.name,
-                    project_id=project.id,
-                    project_slug=project.slug,
-                    project_description=project_desc[:300],
-                    project_url=project.source_url,
-                    subject_name=target_label,
-                    subject_summary=subject_summary,
-                    peers=peers[:15],
-                    total_peers=len(peers),
-                    links=links,
-                    edge=JuryEdgeRef(
-                        source_id=source_id,
-                        target_id=target_id,
-                        ai_weight=round(ai_weight, 6),
-                        ai_percentage=round(ai_weight * 100, 2),
-                        question_type=q_type,
-                    ),
-                )
-            )
 
-    if not candidates:
+# ---------------------------------------------------------------------------
+# GET /jury/questions
+# ---------------------------------------------------------------------------
+
+
+@router.get("/questions", response_model=JuryQuestionsResponse)
+async def get_jury_questions(
+    count: int = Query(5, ge=1, le=7),
+):
+    projects, proj_cache, edge_refs = await _fetch_candidate_edges(count)
+
+    if not edge_refs:
         return JuryQuestionsResponse(questions=[])
 
-    sample_size = min(count, len(candidates))
-    questions = random.sample(candidates, sample_size)
-    questions = await _enrich_questions_with_code(questions)
-    questions = await _enrich_peer_stats(questions)
-    return JuryQuestionsResponse(questions=questions)
+    sample_size = min(count, len(edge_refs))
+    chosen = random.sample(edge_refs, sample_size)
+    questions = _build_questions_from_refs(chosen, proj_cache)
+
+    # Enrich concurrently
+    code_enriched, stats_enriched = await asyncio.gather(
+        _enrich_questions_with_code(list(questions)),
+        _enrich_peer_stats(list(questions)),
+        return_exceptions=True,
+    )
+    return JuryQuestionsResponse(
+        questions=_merge_enrichments(questions, code_enriched, stats_enriched),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /jury/questions/stream — progressive SSE loading
+# ---------------------------------------------------------------------------
+
+
+def _jury_sse(event: str, data) -> str:
+    payload = json.dumps(data) if not isinstance(data, str) else data
+    return "event: {}\ndata: {}\n\n".format(event, payload)
+
+
+def _merge_enrichments(
+    questions: List[JuryQuestion],
+    code_enriched,
+    stats_enriched,
+) -> List[JuryQuestion]:
+    if isinstance(code_enriched, Exception):
+        logger.warning("Code enrichment failed: %s", code_enriched)
+        code_enriched = questions
+    if isinstance(stats_enriched, Exception):
+        logger.warning("Stats enrichment failed: %s", stats_enriched)
+        stats_enriched = questions
+
+    merged = []
+    for i, q in enumerate(questions):
+        updates: Dict[str, Any] = {}
+        if i < len(code_enriched) and code_enriched[i].code_samples:
+            updates["code_samples"] = code_enriched[i].code_samples
+        if i < len(stats_enriched):
+            if stats_enriched[i].peers != q.peers:
+                updates["peers"] = stats_enriched[i].peers
+            if stats_enriched[i].subject_summary != q.subject_summary:
+                updates["subject_summary"] = stats_enriched[i].subject_summary
+        merged.append(q.model_copy(update=updates) if updates else q)
+    return merged
+
+
+@router.get("/questions/stream")
+async def stream_jury_questions(
+    count: int = Query(5, ge=1, le=7),
+):
+    async def event_generator():
+        yield _jury_sse("progress", {"pct": 10, "msg": ""})
+        await asyncio.sleep(0)
+
+        _, proj_cache, edge_refs = await _fetch_candidate_edges(count)
+
+        if not edge_refs:
+            yield _jury_sse("questions", {"questions": []})
+            yield _jury_sse("done", "complete")
+            return
+
+        yield _jury_sse("progress", {"pct": 50, "msg": "Building questions..."})
+        await asyncio.sleep(0)
+
+        sample_size = min(count, len(edge_refs))
+        chosen = random.sample(edge_refs, sample_size)
+        questions = _build_questions_from_refs(chosen, proj_cache)
+
+        # Send base questions immediately so the user can start answering
+        yield _jury_sse("progress", {"pct": 60, "msg": "Ready!"})
+        await asyncio.sleep(0)
+        yield _jury_sse(
+            "questions",
+            JuryQuestionsResponse(questions=questions).model_dump(),
+        )
+        await asyncio.sleep(0)
+
+        # Phase 4: Enrich with code samples in background (peer stats already in graph_data)
+        yield _jury_sse("progress", {"pct": 80, "msg": "Loading code samples..."})
+        await asyncio.sleep(0)
+
+        code_enriched, stats_enriched = await asyncio.gather(
+            _enrich_questions_with_code(list(questions)),
+            _enrich_peer_stats(list(questions)),
+            return_exceptions=True,
+        )
+        merged = _merge_enrichments(questions, code_enriched, stats_enriched)
+
+        yield _jury_sse("progress", {"pct": 100, "msg": "Done"})
+        await asyncio.sleep(0)
+        yield _jury_sse(
+            "questions",
+            JuryQuestionsResponse(questions=merged).model_dump(),
+        )
+        yield _jury_sse("done", "complete")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

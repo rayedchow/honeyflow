@@ -2,7 +2,7 @@ import { getBrokerContext } from "./broker";
 import { buildPrompt, type InferenceAction } from "./prompts";
 
 const MAX_RETRIES = 2;
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-2.5-flash"; // use gemini as fallback for demo if no more credits
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 interface ChatCompletion {
