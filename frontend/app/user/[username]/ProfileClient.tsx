@@ -324,10 +324,38 @@ function UnclaimedEarningsCard({
   );
 }
 
+const isGitHubUsername = (name: string) => !name.includes(" ");
+
+function UserAvatar({ username }: { username: string }) {
+  if (isGitHubUsername(username)) {
+    return (
+      <img
+        src={`https://github.com/${username}.png?size=96`}
+        alt={username}
+        width={48}
+        height={48}
+        className="w-12 h-12 border border-agentbase-border object-cover"
+      />
+    );
+  }
+  const initials = username
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  return (
+    <div className="w-12 h-12 border border-agentbase-border flex items-center justify-center bg-agentbase-card text-agentbase-muted text-lg font-bold tracking-tight">
+      {initials}
+    </div>
+  );
+}
+
 export default function ProfileClient({ profile }: { profile: UserProfile }) {
   const [showUsd, setShowUsd] = useState(false);
   const badges = profile.badges ?? [];
   const earnedCount = badges.filter((b) => b.earned).length;
+  const isGitHub = isGitHubUsername(profile.username);
 
   const totalShare = showUsd
     ? `$${profile.total_attributed_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
@@ -360,25 +388,25 @@ export default function ProfileClient({ profile }: { profile: UserProfile }) {
         <div className="min-w-0">
           {/* User header */}
           <div className="flex items-center gap-4 mb-8">
-            <img
-              src={`https://github.com/${profile.username}.png?size=96`}
-              alt={profile.username}
-              width={48}
-              height={48}
-              className="w-12 h-12 border border-agentbase-border object-cover"
-            />
+            <UserAvatar username={profile.username} />
             <div>
               <h1 className="text-3xl md:text-4xl font-bold tracking-tighter text-agentbase-text">
                 {profile.username}
               </h1>
-              <a
-                href={`https://github.com/${profile.username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[11px] text-agentbase-accent hover:underline font-mono uppercase tracking-widest"
-              >
-                github.com/{profile.username}
-              </a>
+              {isGitHub ? (
+                <a
+                  href={`https://github.com/${profile.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-agentbase-accent hover:underline font-mono uppercase tracking-widest"
+                >
+                  github.com/{profile.username}
+                </a>
+              ) : (
+                <span className="text-[11px] text-agentbase-muted font-mono uppercase tracking-widest">
+                  Research Contributor
+                </span>
+              )}
             </div>
           </div>
 
