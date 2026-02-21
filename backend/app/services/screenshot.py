@@ -52,8 +52,7 @@ async def close_browser() -> None:
 async def take_project_screenshot(source_url: str) -> Optional[bytes]:
     """Navigate to the project's source URL, screenshot the page.
 
-    Returns raw PNG bytes on success,
-    or None on failure.
+    Returns raw PNG bytes on success, or None on failure.
     """
     try:
         browser = await _get_browser()
@@ -64,12 +63,7 @@ async def take_project_screenshot(source_url: str) -> Optional[bytes]:
         page = await context.new_page()
 
         try:
-            # Use domcontentloaded instead of networkidle — sites like
-            # GitHub have continuous background requests that prevent
-            # networkidle from ever firing within the timeout.
             await page.goto(source_url, wait_until="domcontentloaded", timeout=45000)
-
-            # Give JS-rendered content time to paint
             await page.wait_for_timeout(3000)
 
             png_bytes = await page.screenshot(type="png")

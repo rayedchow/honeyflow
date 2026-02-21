@@ -46,11 +46,26 @@ async def list_projects(search: str = ""):
             )
         stmt = stmt.order_by(Project.created_at.desc())
         projects = (await session.execute(stmt)).scalars().all()
+        result = [_to_dict(p) for p in projects]
 
     return {
-        "projects": [_to_dict(p) for p in projects],
-        "count": len(projects),
+        "projects": result,
+        "count": len(result),
     }
+
+
+@router.get("/{slug}/cover")
+async def get_project_cover(slug: str):
+    async with get_session() as session:
+        stmt = select(Project.cover_image_data).where(Project.slug == slug)
+        data = (await session.execute(stmt)).scalar_one_or_none()
+    if not data:
+        raise HTTPException(status_code=404, detail="No cover image")
+    return Response(
+        content=data,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.get("/{slug}")
@@ -58,10 +73,9 @@ async def get_project(slug: str):
     async with get_session() as session:
         stmt = select(Project).where(Project.slug == slug)
         project = (await session.execute(stmt)).scalar_one_or_none()
-
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return _to_dict(project)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        return _to_dict(project)
 
 
 @router.get("/{slug}/cover")

@@ -79,7 +79,7 @@ export default function ProjectDetailClient({
   );
 
   const [amount, setAmount] = useState("");
-  const { address: walletAddress, isConnecting: walletConnecting, connect: connectWallet } = useWallet();
+  const { address: walletAddress, isConnecting: walletConnecting, connect: connectWallet, ensureSepolia } = useWallet();
   const [txStatus, setTxStatus] = useState<TxStatus>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
@@ -106,6 +106,13 @@ export default function ProjectDetailClient({
         }
       }
 
+      const onSepolia = await ensureSepolia();
+      if (!onSepolia) {
+        setTxStatus("error");
+        setTxError("Please switch to the Sepolia network to donate");
+        return;
+      }
+
       setTxStatus("sending");
       const { wallet_address: vaultAddress } = await getVault(project.slug);
 
@@ -130,7 +137,7 @@ export default function ProjectDetailClient({
       setTxStatus("error");
       setTxError(err instanceof Error ? err.message : "Transaction failed");
     }
-  }, [amount, walletAddress, connectWallet, project]);
+  }, [amount, walletAddress, connectWallet, ensureSepolia, project]);
 
   // ── Loading state (project not in DB yet) ─────────────────────────────────
   if (!project) {
@@ -336,6 +343,10 @@ export default function ProjectDetailClient({
                 Splits across {project.contributors} contributors
               </p>
             )}
+            <p className="mt-2 text-[10px] text-agentbase-muted text-center flex items-center justify-center gap-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400" />
+              Sepolia Testnet
+            </p>
           </div>
 
           {/* Funding cycle */}

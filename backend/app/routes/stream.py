@@ -357,8 +357,8 @@ async def _apply_cover_image(
     Returns the cover_url on success, None on failure.
     """
     try:
-        cover_data = await asyncio.wait_for(screenshot_task, timeout=60.0)
-        if not cover_data:
+        png_bytes = await asyncio.wait_for(screenshot_task, timeout=60.0)
+        if not png_bytes:
             return None
 
         cover_url = f"/projects/{actual_slug}/cover"
@@ -375,9 +375,9 @@ async def _apply_cover_image(
                 )
             )
             if project:
-                project.cover_image_data = cover_data
+                project.cover_image_data = png_bytes
                 project.cover_image_url = cover_url
-                logger.info("Cover image updated for %s: %s", actual_slug, cover_url)
+                logger.info("Cover image saved to DB for %s", actual_slug)
         return cover_url
     except Exception as exc:
         logger.warning("Cover image finalization failed for %s: %s", actual_slug, exc)
@@ -578,8 +578,7 @@ async def stream_trace(
                 if screenshot_task.done():
                     try:
                         cover_url = await _apply_cover_image(
-                            screenshot_task,
-                            actual_slug,
+                            screenshot_task, actual_slug,
                         )
                         if cover_url:
                             project_dict["cover_image_url"] = cover_url
