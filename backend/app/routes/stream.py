@@ -19,6 +19,8 @@ from app.services.github import parse_repo_owner_and_name
 from app.services.graph_builder import build_contribution_graph
 from app.services.package_graph_builder import build_package_graph
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/stream", tags=["stream"])
 
 LOG_PREFIXES = re.compile(r"\[(GRAPH|CIT|PKGGRAPH|PKG|REG|ARXIV|LLM)\]")
@@ -402,6 +404,7 @@ async def stream_trace(
     max_children: Optional[int] = Query(None, ge=1, le=50, description="Max child nodes per level"),
 ):
     trace_type = type or _detect_type(url)
+    logger.info("[STREAM] trace called: url=%s type=%s depth=%s max_children=%s", url, trace_type, depth, max_children)
     log_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
 
     async def event_generator():

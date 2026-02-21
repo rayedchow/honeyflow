@@ -1,6 +1,6 @@
 """Recursive graph builder that orchestrates the full contribution tracing pipeline.
 
-Collects data (GitHub API, tarball, parsers), runs analysis (LLM + heuristic),
+Collects data (GitHub API, Git Trees API, parsers), runs analysis (LLM + heuristic),
 and assembles a weighted attribution graph.
 """
 
@@ -8,21 +8,23 @@ import asyncio
 import logging
 import os
 import shutil
+import tempfile
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.config import settings
 from app.schemas.graph import Edge, Graph, GraphConfig, Node, NodeType
 from app.services import llm
 from app.services.github import (
-    build_file_tree,
-    download_repo_tarball,
+    build_file_tree_from_api,
+    count_source_files_from_tree,
     fetch_contributor_stats,
+    fetch_manifests_from_tree,
     fetch_readme,
     fetch_repo_metadata,
+    fetch_repo_tree,
     parse_repo_owner_and_name,
 )
-from app.services.parsers.imports import count_import_frequency
-from app.services.parsers.manifest import Dependency, parse_all_manifests
+from app.services.parsers.manifest import Dependency, parse_manifest
 from app.services.registry import resolve_to_github_url
 
 logger = logging.getLogger(__name__)
@@ -98,19 +100,14 @@ class GraphBuilder:
         node_type = NodeType.REPO if is_root else NodeType.BODY_OF_WORK
         self.nodes.append(Node(id=node_id, type=node_type, label=repo_key))
 
-        use_tarball = is_root
+        use_full = is_root
         use_llm = is_root
-        mode = (
-            "FULL (tarball+LLM)"
-            if use_tarball and use_llm
-            else ("FULL (tarball)" if use_tarball else "LIGHT (API only)")
-        )
+        mode = "FULL (Trees API+LLM)" if use_full else "LIGHT (API only)"
         logger.info("[GRAPH] ── %s depth=%d mode=%s", repo_key, depth, mode)
 
-        source_dir: Optional[str] = None
         try:
-            if use_tarball:
-                source_dir = await self._build_with_full_analysis(
+            if use_full:
+                await self._build_with_full_analysis(
                     owner, repo, node_id, depth, use_llm
                 )
             else:
@@ -121,14 +118,11 @@ class GraphBuilder:
                 repo_key, type(exc).__name__, exc, exc_info=True,
             )
             await self._add_contributor_leaves(owner, repo, node_id)
-        finally:
-            if source_dir:
-                shutil.rmtree(os.path.dirname(source_dir), ignore_errors=True)
 
         return node_id
 
     # ------------------------------------------------------------------
-    # Full analysis (root repo): tarball + LLM + parsers
+    # Full analysis (root repo): Git Trees API + LLM + parsers
     # ------------------------------------------------------------------
 
     async def _build_with_full_analysis(
@@ -138,20 +132,42 @@ class GraphBuilder:
         node_id: str,
         depth: int,
         use_llm: bool,
-    ) -> Optional[str]:
-        """Full analysis path: download tarball, parse manifests/imports, use LLM."""
-        source_dir = await download_repo_tarball(owner, repo)
-
+    ) -> None:
+        """Full analysis path: Git Trees API + Contents API + LLM."""
         logger.info("[GRAPH] Phase 1: collecting data for %s/%s ...", owner, repo)
+
+        # Fetch tree, metadata, and readme in parallel
         metadata_task = fetch_repo_metadata(owner, repo)
         readme_task = fetch_readme(owner, repo)
-        metadata, readme = await asyncio.gather(metadata_task, readme_task)
+        tree_task = fetch_repo_tree(owner, repo)
+        metadata, readme, tree = await asyncio.gather(
+            metadata_task, readme_task, tree_task
+        )
 
-        file_tree = build_file_tree(source_dir)
-        ecosystem, deps = parse_all_manifests(source_dir)
-        usage_freq = count_import_frequency(source_dir, ecosystem)
+        # Build file tree string and count source files from API response
+        file_tree = build_file_tree_from_api(tree, "{}/{}".format(owner, repo))
+        source_file_count = count_source_files_from_tree(tree)
 
-        source_file_count = self._count_source_files(source_dir)
+        # Fetch and parse manifest files via Contents API
+        manifest_results = await fetch_manifests_from_tree(owner, repo, tree)
+        deps: List[Dependency] = []
+        seen_names: set = set()
+        ecosystem = "unknown"
+        for filename, content_text, eco in manifest_results:
+            if ecosystem == "unknown":
+                ecosystem = eco
+            tmp = tempfile.mkdtemp(prefix="manifest_")
+            try:
+                fpath = os.path.join(tmp, filename)
+                with open(fpath, "w") as f:
+                    f.write(content_text)
+                for dep in parse_manifest(fpath, eco):
+                    if dep.name not in seen_names:
+                        seen_names.add(dep.name)
+                        deps.append(dep)
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+
         prod_deps = [d for d in deps if not d.dev_only]
 
         # If no prod deps but dev deps exist (monorepos, compilers, etc.),
@@ -165,12 +181,11 @@ class GraphBuilder:
         dep_names = [d.name for d in prod_deps]
         logger.info(
             "[GRAPH] Phase 1 done: ecosystem=%s, %d deps (%d analysable), "
-            "%d source files, %d import entries",
+            "%d source files",
             ecosystem,
             len(deps),
             len(dep_names),
             source_file_count,
-            len(usage_freq),
         )
 
         if use_llm:
@@ -180,14 +195,13 @@ class GraphBuilder:
             repo_analysis = await llm.analyze_repo(readme, metadata, file_tree)
 
             if dep_names:
-                matched_usage = self._match_usage(deps, usage_freq, ecosystem)
                 split_task = llm.split_direct_vs_deps(
                     repo_analysis, len(dep_names), source_file_count
                 )
                 rank_task = llm.rank_dependency_importance(
                     repo_analysis,
                     dep_names,
-                    matched_usage,
+                    {},
                 )
                 (direct_frac, deps_frac), dep_importance = await asyncio.gather(
                     split_task, rank_task
@@ -195,7 +209,6 @@ class GraphBuilder:
             else:
                 direct_frac, deps_frac = 1.0, 0.0
                 dep_importance = {}
-                matched_usage = {}
         else:
             logger.info(
                 "[GRAPH] Phase 2: heuristic analysis (LLM skipped) for %s/%s",
@@ -209,11 +222,7 @@ class GraphBuilder:
             }
             direct_frac = 1.0 if not dep_names else 0.6
             deps_frac = 0.0 if not dep_names else 0.4
-            matched_usage = self._match_usage(deps, usage_freq, ecosystem)
-            dep_importance = self._heuristic_dep_ranking(
-                deps,
-                matched_usage,
-            )
+            dep_importance = self._heuristic_dep_ranking(deps, {})
 
         self.nodes[self._node_index(node_id)].metadata = {
             "purpose": repo_analysis.get("purpose", ""),
@@ -235,10 +244,7 @@ class GraphBuilder:
                 dep_importance,
                 deps_frac,
                 depth,
-                usage_map=matched_usage,
             )
-
-        return source_dir
 
     # ------------------------------------------------------------------
     # Lightweight analysis (dependencies at depth > 0): API only
@@ -370,7 +376,6 @@ class GraphBuilder:
         dep_importance: Dict[str, float],
         budget: float,
         depth: int,
-        usage_map: Optional[Dict[str, int]] = None,
     ) -> None:
         """Add the top-N dependency nodes as children of parent_id."""
         ranked = sorted(
@@ -404,7 +409,6 @@ class GraphBuilder:
                             "importance_score": round(
                                 dep_importance.get(dep.name, 0.01), 4
                             ),
-                            "usage_import_count": (usage_map or {}).get(dep.name, 0),
                         },
                     )
                 )
@@ -850,40 +854,6 @@ class GraphBuilder:
             return {d.name: equal for d in deps}
         max_freq = max(usage.values()) or 1
         return {d.name: max(usage.get(d.name, 0) / max_freq, 0.01) for d in deps}
-
-    @staticmethod
-    def _match_usage(
-        deps: List[Dependency],
-        usage_freq: Dict[str, int],
-        ecosystem: str,
-    ) -> Dict[str, int]:
-        """Match dependency names to import frequency, handling name normalization."""
-        matched: Dict[str, int] = {}
-        norm_usage = {}
-        for key, count in usage_freq.items():
-            norm_usage[key.lower().replace("-", "_")] = count
-            norm_usage[key.lower()] = count
-
-        for dep in deps:
-            name = dep.name
-            freq = usage_freq.get(name, 0)
-            if freq == 0:
-                norm = name.lower().replace("-", "_")
-                freq = norm_usage.get(norm, 0)
-            matched[name] = freq
-
-        return matched
-
-    @staticmethod
-    def _count_source_files(source_dir: str) -> int:
-        """Count source files in a directory tree."""
-        extensions = (".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".go", ".java", ".rb")
-        skip = {"node_modules", ".git", "__pycache__", "venv", ".venv", "target"}
-        count = 0
-        for root, dirs, files in os.walk(source_dir):
-            dirs[:] = [d for d in dirs if d not in skip]
-            count += sum(1 for f in files if f.endswith(extensions))
-        return count
 
     def _node_index(self, node_id: str) -> int:
         """Find the index of a node by id."""

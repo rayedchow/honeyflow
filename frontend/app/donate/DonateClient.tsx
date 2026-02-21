@@ -46,7 +46,7 @@ function StreamingLog() {
               key={`${line.time}-${i}`}
               className="flex gap-2 leading-relaxed animate-[fadeInLine_0.3s_ease-out]"
             >
-              <span className="text-agentbase-muted flex-shrink-0 w-10 text-right tabular-nums">
+              <span className="text-agentbase-muted flex-shrink-0 w-16 text-right tabular-nums">
                 [{line.time}]
               </span>
               <span className="text-agentbase-text break-all min-w-0">{line.text}</span>
@@ -54,7 +54,7 @@ function StreamingLog() {
           ))}
           {isActive && (
             <div className="flex items-center gap-2 mt-1">
-              <span className="w-10" />
+              <span className="w-16" />
               <span className="w-1.5 h-3.5 bg-agentbase-cyan/60 animate-pulse" />
             </div>
           )}

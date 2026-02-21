@@ -82,9 +82,9 @@ export default function FundingCycle({
   const approvePct = totalVotes > 0 ? Math.round((counts.up / totalVotes) * 100) : 50;
 
   return (
-    <div className="border border-agentbase-yellow/30 bg-agentbase-yellow/10 p-5 mb-4">
+    <div className="border border-agentbase-border bg-agentbase-card p-5 mb-4">
       {/* ── Funding Cycle Progress ─────────────────────────────────────── */}
-      <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-1">
+      <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-3">
         Funding Cycle
       </p>
 
@@ -94,76 +94,80 @@ export default function FundingCycle({
         </p>
       ) : (
         <>
-          <p className="text-sm font-bold font-mono text-agentbase-text mb-2">
-            Day {daysPassed} of 7
-          </p>
+          <div className="flex items-baseline justify-between mb-2">
+            <p className="text-lg font-bold tracking-tight text-agentbase-text">
+              Day {daysPassed} of 7
+            </p>
+            <p className="text-[10px] font-mono text-agentbase-muted">
+              {daysRemaining} day{daysRemaining !== 1 ? "s" : ""} left
+            </p>
+          </div>
           {/* Progress bar */}
-          <div className="w-full h-2 bg-agentbase-border rounded-full overflow-hidden mb-1">
+          <div className="w-full h-1.5 bg-agentbase-border overflow-hidden mb-4">
             <div
-              className="h-full bg-agentbase-yellow rounded-full transition-all"
+              className="h-full bg-agentbase-yellow transition-all"
               style={{ width: `${progressPct}%` }}
             />
           </div>
-          <p className="text-[10px] font-mono text-agentbase-muted mb-4">
-            {daysRemaining} day{daysRemaining !== 1 ? "s" : ""} remaining
-          </p>
         </>
       )}
 
       {/* ── Community Sentiment ────────────────────────────────────────── */}
-      <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-2">
-        Do you approve the AI&apos;s funding decision?
-      </p>
+      <div className="border-t border-agentbase-border pt-4">
+        <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-3">
+          Community Approval
+        </p>
 
-      <div className="flex items-center gap-2 mb-2">
-        {/* Thumbs up */}
-        <button
-          onClick={() => handleVote("up")}
-          className={`p-1.5 rounded transition-colors ${
-            vote === "up"
-              ? "bg-green-500/20 text-green-400"
-              : "text-agentbase-muted hover:text-green-400"
-          }`}
-          aria-label="Approve"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M7 10v12" />
-            <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-3 mb-3">
+          {/* Thumbs up */}
+          <button
+            onClick={() => handleVote("up")}
+            className={`p-2 border transition-colors ${
+              vote === "up"
+                ? "border-agentbase-yellow bg-agentbase-yellow/20 text-agentbase-yellow"
+                : "border-agentbase-border text-agentbase-muted hover:text-agentbase-yellow hover:border-agentbase-yellow"
+            }`}
+            aria-label="Approve"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 10v12" />
+              <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+            </svg>
+          </button>
 
-        {/* Ratio bar */}
-        <div className="flex-1 h-3 rounded-full overflow-hidden flex">
-          <div
-            className="h-full bg-green-500 transition-all"
-            style={{ width: `${approvePct}%` }}
-          />
-          <div
-            className="h-full bg-red-500/40 transition-all"
-            style={{ width: `${100 - approvePct}%` }}
-          />
+          {/* Ratio bar */}
+          <div className="flex-1 h-1.5 bg-agentbase-border overflow-hidden flex">
+            <div
+              className="h-full bg-agentbase-yellow transition-all"
+              style={{ width: `${approvePct}%` }}
+            />
+            <div
+              className="h-full bg-agentbase-border transition-all"
+              style={{ width: `${100 - approvePct}%` }}
+            />
+          </div>
+
+          {/* Thumbs down */}
+          <button
+            onClick={() => handleVote("down")}
+            className={`p-2 border transition-colors ${
+              vote === "down"
+                ? "border-agentbase-text bg-agentbase-invertedBg text-agentbase-invertedText"
+                : "border-agentbase-border text-agentbase-muted hover:text-agentbase-text hover:border-agentbase-text"
+            }`}
+            aria-label="Disapprove"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 14V2" />
+              <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+            </svg>
+          </button>
         </div>
 
-        {/* Thumbs down */}
-        <button
-          onClick={() => handleVote("down")}
-          className={`p-1.5 rounded transition-colors ${
-            vote === "down"
-              ? "bg-red-500/20 text-red-400"
-              : "text-agentbase-muted hover:text-red-400"
-          }`}
-          aria-label="Disapprove"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 14V2" />
-            <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
-          </svg>
-        </button>
+        <p className="text-[10px] font-mono text-agentbase-muted text-center">
+          {approvePct}% approve &middot; {totalVotes} votes
+        </p>
       </div>
-
-      <p className="text-[10px] font-mono text-agentbase-muted text-center">
-        {approvePct}% approve &middot; {totalVotes} votes
-      </p>
     </div>
   );
 }

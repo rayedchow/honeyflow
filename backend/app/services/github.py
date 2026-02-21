@@ -1,14 +1,12 @@
 """GitHub API client.
 
-Handles contributor fetching, repo metadata, README, tarball download,
+Handles contributor fetching, repo metadata, README, Git Trees API,
 and detailed contributor stats.
 """
 
+import asyncio
 import logging
-import os
 import re
-import tarfile
-import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
@@ -21,7 +19,22 @@ logger = logging.getLogger(__name__)
 
 
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
-_TARBALL_TIMEOUT = httpx.Timeout(120.0, connect=10.0)
+
+# Limit concurrent GitHub API requests to avoid ConnectTimeout errors
+_SEMAPHORE = asyncio.Semaphore(15)
+_CLIENT: Optional[httpx.AsyncClient] = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    """Get or create a shared httpx client with connection pooling."""
+    global _CLIENT
+    if _CLIENT is None or _CLIENT.is_closed:
+        _CLIENT = httpx.AsyncClient(
+            timeout=_TIMEOUT,
+            follow_redirects=True,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+    return _CLIENT
 
 
 def _headers() -> Dict[str, str]:
@@ -75,7 +88,8 @@ async def fetch_top_contributors(
     params: Dict[str, Any] = {"per_page": limit * 2, "anon": "false"}
 
     logger.info("GET  %s/%s contributors (limit=%d)", owner, repo, limit)
-    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+    async with _SEMAPHORE:
+        client = _get_client()
         response = await client.get(url, headers=_headers(), params=params)
         response.raise_for_status()
 
@@ -97,7 +111,8 @@ async def fetch_repo_metadata(owner: str, repo: str) -> Dict[str, Any]:
     """Fetch basic repo info and language breakdown."""
     logger.info("GET  %s/%s metadata + languages", owner, repo)
     base = settings.github_api_base
-    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+    async with _SEMAPHORE:
+        client = _get_client()
         repo_resp = await client.get(
             "{}/repos/{}/{}".format(base, owner, repo), headers=_headers()
         )
@@ -131,7 +146,8 @@ async def fetch_readme(owner: str, repo: str, max_chars: int = 4000) -> str:
     url = "{}/repos/{}/{}/readme".format(settings.github_api_base, owner, repo)
     headers = {**_headers(), "Accept": "application/vnd.github.raw+json"}
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+    async with _SEMAPHORE:
+        client = _get_client()
         resp = await client.get(url, headers=headers)
         if resp.status_code == 404:
             logger.info("     %s/%s README not found", owner, repo)
@@ -144,86 +160,120 @@ async def fetch_readme(owner: str, repo: str, max_chars: int = 4000) -> str:
 
 
 # ------------------------------------------------------------------
-# Tarball download + extract
+# Git Trees API (replaces tarball download)
 # ------------------------------------------------------------------
 
 
-async def download_repo_tarball(owner: str, repo: str) -> str:
-    """Download and extract a repo tarball. Returns path to extracted root.
+async def fetch_repo_tree(owner: str, repo: str, branch: str = "HEAD") -> List[Dict[str, Any]]:
+    """Fetch the full recursive file tree via the Git Trees API.
 
-    Caller is responsible for cleaning up the parent temp directory via
-    ``shutil.rmtree(os.path.dirname(returned_path))``.
+    Returns a list of tree entries, each with keys: path, mode, type, size, sha.
     """
-    logger.info("GET  %s/%s tarball (downloading source archive)", owner, repo)
-    url = "{}/repos/{}/{}/tarball".format(settings.github_api_base, owner, repo)
-    tmp_dir = tempfile.mkdtemp(prefix="repotrace_")
-    tarball_path = os.path.join(tmp_dir, "repo.tar.gz")
-
-    async with httpx.AsyncClient(
-        timeout=_TARBALL_TIMEOUT, follow_redirects=True
-    ) as client:
-        resp = await client.get(url, headers=_headers())
+    logger.info("GET  %s/%s git/trees/%s?recursive=1", owner, repo, branch)
+    url = "{}/repos/{}/{}/git/trees/{}".format(
+        settings.github_api_base, owner, repo, branch
+    )
+    async with _SEMAPHORE:
+        client = _get_client()
+        resp = await client.get(url, headers=_headers(), params={"recursive": "1"})
         resp.raise_for_status()
 
-    size_mb = len(resp.content) / (1024 * 1024)
-    logger.info("     %s/%s tarball downloaded (%.1f MB)", owner, repo, size_mb)
-
-    with open(tarball_path, "wb") as f:
-        f.write(resp.content)
-
-    with tarfile.open(tarball_path) as tar:
-        tar.extractall(tmp_dir)
-
-    os.remove(tarball_path)
-
-    subdirs = [
-        d for d in os.listdir(tmp_dir) if os.path.isdir(os.path.join(tmp_dir, d))
-    ]
-    extracted = os.path.join(tmp_dir, subdirs[0]) if subdirs else tmp_dir
-    logger.info("     %s/%s tarball extracted to %s", owner, repo, extracted)
-    return extracted
+    data = resp.json()
+    tree = data.get("tree", [])
+    truncated = data.get("truncated", False)
+    logger.info(
+        "     %s/%s tree: %d entries (truncated=%s)", owner, repo, len(tree), truncated
+    )
+    return tree
 
 
-# ------------------------------------------------------------------
-# File tree (from an extracted directory)
-# ------------------------------------------------------------------
+async def fetch_manifests_from_tree(
+    owner: str, repo: str, tree: List[Dict[str, Any]]
+) -> List[tuple]:
+    """Find manifest files in the tree and fetch their contents.
+
+    Returns list of (filename, content_text, ecosystem) tuples.
+    """
+    from app.services.parsers.manifest import MANIFEST_FILES
+
+    root_manifests = []
+    for entry in tree:
+        if entry.get("type") != "blob":
+            continue
+        path = entry.get("path", "")
+        # Only root-level manifests (no slashes in path)
+        if "/" not in path and path in MANIFEST_FILES:
+            root_manifests.append((path, MANIFEST_FILES[path]))
+
+    results = []
+    for filename, ecosystem in root_manifests:
+        text = await fetch_file_content(owner, repo, filename)
+        if text:
+            results.append((filename, text, ecosystem))
+
+    logger.info(
+        "     %s/%s fetched %d manifest files via Contents API",
+        owner, repo, len(results),
+    )
+    return results
 
 
-def build_file_tree(source_dir: str, max_depth: int = 2) -> str:
-    """Build a compact string representation of the file tree."""
-    lines: List[str] = []
-    base = os.path.basename(source_dir)
+def build_file_tree_from_api(tree: List[Dict[str, Any]], repo_name: str, max_depth: int = 2) -> str:
+    """Build a compact file tree string from Git Trees API response."""
     skip = {
-        "node_modules",
-        ".git",
-        "__pycache__",
-        ".venv",
-        "venv",
-        "target",
-        "dist",
-        "build",
+        "node_modules", ".git", "__pycache__", ".venv", "venv",
+        "target", "dist", "build",
     }
 
-    def _walk(path: str, prefix: str, depth: int) -> None:
+    # Build a nested dict from flat paths
+    root: Dict[str, Any] = {}
+    for entry in tree:
+        path = entry.get("path", "")
+        parts = path.split("/")
+        # Skip entries inside skipped directories
+        if any(p in skip for p in parts):
+            continue
+        node = root
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        if entry.get("type") == "tree":
+            node.setdefault(parts[-1], {})
+        else:
+            node[parts[-1]] = None  # leaf file
+
+    lines: List[str] = []
+
+    def _walk(subtree: Dict, prefix: str, depth: int) -> None:
         if depth > max_depth:
             return
-        try:
-            entries = sorted(os.listdir(path))
-        except OSError:
-            return
-        dirs = [
-            e for e in entries if os.path.isdir(os.path.join(path, e)) and e not in skip
-        ]
-        files = [e for e in entries if os.path.isfile(os.path.join(path, e))]
+        dirs = sorted(k for k, v in subtree.items() if isinstance(v, dict))
+        files = sorted(k for k, v in subtree.items() if v is None)
         for f in files:
             lines.append("{}{}".format(prefix, f))
         for d in dirs:
             lines.append("{}{}/".format(prefix, d))
-            _walk(os.path.join(path, d), prefix + "  ", depth + 1)
+            _walk(subtree[d], prefix + "  ", depth + 1)
 
-    lines.append("{}/".format(base))
-    _walk(source_dir, "  ", 0)
+    lines.append("{}/".format(repo_name))
+    _walk(root, "  ", 0)
     return "\n".join(lines[:200])
+
+
+def count_source_files_from_tree(tree: List[Dict[str, Any]]) -> int:
+    """Count source files from Git Trees API response."""
+    extensions = (".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".go", ".java", ".rb")
+    skip = {"node_modules", ".git", "__pycache__", "venv", ".venv", "target"}
+    count = 0
+    for entry in tree:
+        if entry.get("type") != "blob":
+            continue
+        path = entry.get("path", "")
+        parts = path.split("/")
+        if any(p in skip for p in parts):
+            continue
+        if any(path.endswith(ext) for ext in extensions):
+            count += 1
+    return count
 
 
 # ------------------------------------------------------------------
@@ -238,14 +288,13 @@ async def fetch_contributor_stats(owner: str, repo: str) -> List[Dict[str, Any]]
     Falls back to the simpler /contributors endpoint (commit counts only) if
     the stats endpoint keeps returning 202.
     """
-    import asyncio
-
     stats_url = "{}/repos/{}/{}/stats/contributors".format(
         settings.github_api_base, owner, repo
     )
 
     logger.info("GET  %s/%s stats/contributors (detailed)", owner, repo)
-    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+    async with _SEMAPHORE:
+        client = _get_client()
         resp = await client.get(stats_url, headers=_headers())
 
         retries = 3
@@ -347,7 +396,8 @@ async def fetch_contributor_commits(
 
     logger.info("GET  %s/%s commits?author=%s (limit=%d)", owner, repo, login, limit)
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+    async with _SEMAPHORE:
+        client = _get_client()
         resp = await client.get(
             list_url,
             headers=_headers(),
@@ -427,7 +477,8 @@ async def fetch_file_content(owner: str, repo: str, path: str) -> Optional[str]:
     )
     headers = {**_headers(), "Accept": "application/vnd.github.raw+json"}
 
-    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=True) as client:
+    async with _SEMAPHORE:
+        client = _get_client()
         resp = await client.get(url, headers=headers)
         if resp.status_code != 200:
             logger.info(
