@@ -113,3 +113,18 @@ export interface SubmitJuryAnswersResponse {
   updated_projects: number;
   reward_eth: number;
 }
+
+export interface Donation {
+  id: number;
+  project_id: string;
+  donator_address: string;
+  amount_eth: number;
+  tx_hash: string | null;
+  created_at: string;
+}
+
+export interface DonationsResponse {
+  donations: Donation[];
+  total_eth: number;
+  count: number;
+}
