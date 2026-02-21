@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { forceRadial, forceCollide } from "d3-force-3d";
 import type { GraphData } from "@/lib/types";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
@@ -141,36 +142,83 @@ export default function ForceGraph({
   }, []);
 
   // Transform edges -> links, compute BFS depths for honeycomb coloring
+  const RING_SPACING = 70;
+
   const { data, depthMap, maxDepth } = useMemo(() => {
-    const nodes = graphData.nodes.map((n) => ({
-      id: n.id,
-      label: n.label,
-      type: n.type,
-      metadata: n.metadata,
-      val: n.type === "CONTRIBUTOR" || n.type === "AUTHOR" ? 2 : 4,
-    }));
+    const { depthMap, maxDepth } = computeDepths(
+      graphData.nodes,
+      graphData.edges,
+    );
+
+    // Seed initial positions on target rings for fast convergence
+    const nodes = graphData.nodes.map((n) => {
+      const depth = depthMap.get(n.id) ?? maxDepth;
+      const angle = Math.random() * 2 * Math.PI;
+      const radius = depth * RING_SPACING;
+      return {
+        id: n.id,
+        label: n.label,
+        type: n.type,
+        metadata: n.metadata,
+        val: n.type === "CONTRIBUTOR" || n.type === "AUTHOR" ? 2 : 4,
+        x: radius * Math.cos(angle),
+        y: radius * Math.sin(angle),
+      };
+    });
     const links = graphData.edges.map((e) => ({
       source: e.source,
       target: e.target,
       weight: e.weight,
       label: e.label,
     }));
-    const { depthMap, maxDepth } = computeDepths(
-      graphData.nodes,
-      graphData.edges,
-    );
     return { data: { nodes, links }, depthMap, maxDepth };
   }, [graphData]);
 
   const effectiveHeight = height || containerHeight;
 
+  // Configure radial layout forces
   useEffect(() => {
-    if (!fgRef.current || data.nodes.length === 0) return;
+    const fg = fgRef.current;
+    if (!fg || data.nodes.length === 0) return;
+
+    // Radial force: push each node to its BFS-depth ring
+    fg.d3Force(
+      "radial",
+      forceRadial(
+        (node: any) => {
+          const depth = depthMap.get(node.id) ?? maxDepth;
+          return depth * RING_SPACING;
+        },
+        0,
+        0,
+      ).strength(0.8),
+    );
+
+    // Collision prevention
+    fg.d3Force(
+      "collision",
+      forceCollide((node: any) => {
+        return Math.sqrt(node.val || 4) * 4 + 4;
+      }).iterations(3),
+    );
+
+    // Weaken charge so nodes don't repel wildly
+    fg.d3Force("charge")?.strength(-20);
+
+    // Remove center force (radial replaces it)
+    fg.d3Force("center", null);
+
+    // Moderate link tension
+    fg.d3Force("link")?.distance(50).strength(0.2);
+
+    fg.d3ReheatSimulation();
+
+    // Zoom to fit after settling
     const id = window.setTimeout(() => {
-      fgRef.current?.zoomToFit(450, 60);
-    }, 250);
+      fg.zoomToFit(450, 60);
+    }, 600);
     return () => window.clearTimeout(id);
-  }, [data.nodes.length, data.links.length, containerWidth, effectiveHeight]);
+  }, [data, depthMap, maxDepth]);
 
   const nodeCanvasObject = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -218,7 +266,10 @@ export default function ForceGraph({
         linkColor={() => "rgba(120,120,120,0.35)"}
         linkWidth={() => 0.5}
         linkDirectionalParticles={0}
-        cooldownTicks={120}
+        d3AlphaDecay={0.02}
+        d3VelocityDecay={0.3}
+        warmupTicks={100}
+        cooldownTicks={200}
         enableZoomInteraction={true}
         enablePanInteraction={true}
       />
