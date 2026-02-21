@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getProjectBySlug } from "@/lib/projects";
-import Footer from "@/components/agentbase/Footer";
+import Footer from "@/components/layout/Footer";
 import ProjectDetailClient from "./ProjectDetailClient";
 
 interface Props {

@@ -9,7 +9,7 @@ import {
   newProjects,
   type Project as StaticProject,
 } from "@/lib/projects";
-import { typeConfig } from "@/components/agentbase/TypeIcons";
+import { typeConfig } from "@/components/ui/TypeIcons";
 import type { Project } from "@/lib/types";
 
 const fetcher = () => fetchProjects().then((d) => d.projects);

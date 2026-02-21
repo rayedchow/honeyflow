@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Footer from "@/components/agentbase/Footer";
+import Footer from "@/components/layout/Footer";
 import ExploreClient from "./ExploreClient";
 
 export const metadata: Metadata = {

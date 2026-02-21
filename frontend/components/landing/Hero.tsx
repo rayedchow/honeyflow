@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import EthIcon from './EthIcon';
+import EthIcon from '@/components/ui/EthIcon';
 
 type Phase = 'idle' | 'exit' | 'squish' | 'enter';
 

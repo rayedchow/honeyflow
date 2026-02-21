@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BrowserProvider, parseEther } from "ethers";
 
-import EthIcon from "@/components/agentbase/EthIcon";
-import ForceGraph from "@/components/agentbase/ForceGraph";
+import EthIcon from "@/components/ui/EthIcon";
+import ForceGraph from "@/components/viz/ForceGraph";
 import { streamTrace, getVault, confirmDonate } from "@/lib/api";
 import { useTraceStore } from "@/lib/trace-store";
 import { useWallet } from "@/hooks/useWallet";
