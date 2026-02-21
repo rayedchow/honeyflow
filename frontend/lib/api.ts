@@ -5,7 +5,9 @@ import type {
   ProjectListResponse,
   SubmitJuryAnswer,
   SubmitJuryAnswersResponse,
+  UserEarnings,
   UserProfile,
+  WithdrawResponse,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -128,6 +130,36 @@ export function streamTrace(
 export async function fetchUserProfile(username: string): Promise<UserProfile> {
   const res = await fetch(`${API_BASE}/users/${encodeURIComponent(username)}`);
   if (!res.ok) throw new Error(`Failed to fetch user profile: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchUserEarnings(
+  username: string,
+  wallet?: string | null,
+): Promise<UserEarnings> {
+  const params = new URLSearchParams();
+  if (wallet) params.set("wallet", wallet);
+  const qs = params.toString() ? `?${params}` : "";
+  const res = await fetch(
+    `${API_BASE}/users/${encodeURIComponent(username)}/earnings${qs}`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch earnings: ${res.status}`);
+  return res.json();
+}
+
+export async function withdrawEarnings(
+  username: string,
+  toAddress: string,
+): Promise<WithdrawResponse> {
+  const res = await fetch(
+    `${API_BASE}/users/${encodeURIComponent(username)}/withdraw`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to_address: toAddress }),
+    },
+  );
+  if (!res.ok) throw new Error(`Withdrawal failed: ${res.status}`);
   return res.json();
 }
 

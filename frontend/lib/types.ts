@@ -164,3 +164,32 @@ export interface DonationsResponse {
   total_eth: number;
   count: number;
 }
+
+export interface EarningsProjectBreakdown {
+  slug: string;
+  name: string;
+  share_eth: number;
+  percentage: number;
+}
+
+export interface UserEarnings {
+  username: string;
+  contribution_eth: number;
+  juror_eth: number;
+  total_eth: number;
+  withdrawn_eth: number;
+  unclaimed_eth: number;
+  unclaimed_usd: number;
+  projects: EarningsProjectBreakdown[];
+}
+
+export interface WithdrawResponse {
+  username: string;
+  total_withdrawn_eth: number;
+  disbursements: {
+    project: string;
+    amount_eth: number;
+    tx_hash?: string;
+    error?: string;
+  }[];
+}

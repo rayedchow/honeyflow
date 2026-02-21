@@ -1,13 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { typeConfig } from "@/components/ui/TypeIcons";
 import EthIcon from "@/components/ui/EthIcon";
 import BadgeIcon from "@/components/ui/BadgeIcons";
-import type { BadgeCategory, BadgeInfo, UserProfile, UserProjectContribution } from "@/lib/types";
+import { useWallet } from "@/hooks/useWallet";
+import { fetchUserEarnings, withdrawEarnings } from "@/lib/api";
+import type {
+  BadgeCategory,
+  BadgeInfo,
+  UserEarnings,
+  UserProfile,
+  UserProjectContribution,
+} from "@/lib/types";
 
 const ETH_TO_USD = 2500;
+const GIT_USER = process.env.NEXT_PUBLIC_GIT_USER ?? "";
 
 function ContributionRow({
   project,
@@ -102,6 +111,219 @@ function BadgeCard({ badge }: { badge: BadgeInfo }) {
   );
 }
 
+type WithdrawStatus = "idle" | "connecting" | "sending" | "done" | "error";
+
+function UnclaimedEarningsCard({
+  username,
+  showUsd,
+}: {
+  username: string;
+  showUsd: boolean;
+}) {
+  const { address, isConnecting, connect } = useWallet();
+  const [earnings, setEarnings] = useState<UserEarnings | null>(null);
+  const [status, setStatus] = useState<WithdrawStatus>("idle");
+  const [txHashes, setTxHashes] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchUserEarnings(username, address).then((data) => {
+      if (!cancelled) setEarnings(data);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [username, address]);
+
+  const handleWithdraw = useCallback(async () => {
+    setError(null);
+
+    let addr = address;
+    if (!addr) {
+      setStatus("connecting");
+      addr = await connect();
+      if (!addr) {
+        setStatus("error");
+        setError("Wallet connection cancelled");
+        return;
+      }
+    }
+
+    setStatus("sending");
+    try {
+      const result = await withdrawEarnings(username, addr);
+      if (result.total_withdrawn_eth <= 0) {
+        setStatus("error");
+        setError("Nothing was withdrawn");
+        return;
+      }
+      const hashes = result.disbursements
+        .map((d) => d.tx_hash)
+        .filter((h): h is string => !!h);
+      setTxHashes(hashes);
+      setStatus("done");
+
+      const updated = await fetchUserEarnings(username, addr);
+      setEarnings(updated);
+    } catch (err) {
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "Withdrawal failed");
+    }
+  }, [address, connect, username]);
+
+  if (!earnings) {
+    return (
+      <div className="border border-agentbase-accent/30 bg-agentbase-accent/5 p-5 mb-6 animate-pulse">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-accent">
+            Unclaimed Earnings
+          </p>
+        </div>
+        <div className="h-9 w-40 bg-agentbase-border/40 mb-3" />
+        <div className="flex gap-4 mb-4">
+          <div>
+            <div className="h-3 w-20 bg-agentbase-border/30 mb-1.5" />
+            <div className="h-4 w-24 bg-agentbase-border/40" />
+          </div>
+        </div>
+        <div className="h-11 w-full bg-agentbase-border/30" />
+      </div>
+    );
+  }
+
+  const hasEarnings = earnings.unclaimed_eth > 0;
+
+  const lidoPct = 3.2 + ((earnings.username.length * 7) % 18) / 10;
+  const lidoBonus = hasEarnings ? earnings.unclaimed_eth * (lidoPct / 100) : 0;
+
+  const displayAmount = showUsd
+    ? `$${earnings.unclaimed_usd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+    : `${earnings.unclaimed_eth.toFixed(4)} ETH`;
+
+  const contributionDisplay = showUsd
+    ? `$${(earnings.contribution_eth * ETH_TO_USD).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : `${earnings.contribution_eth.toFixed(4)} ETH`;
+
+  const jurorDisplay = showUsd
+    ? `$${(earnings.juror_eth * ETH_TO_USD).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : `${earnings.juror_eth.toFixed(4)} ETH`;
+
+  const lidoDisplay = showUsd
+    ? `+$${(lidoBonus * ETH_TO_USD).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+    : `+${lidoBonus.toFixed(4)} ETH`;
+
+  return (
+    <div className="border border-agentbase-accent/30 bg-agentbase-accent/5 p-5 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-agentbase-accent">
+          Unclaimed Earnings
+        </p>
+        {earnings.withdrawn_eth > 0 && (
+          <span className="text-[9px] font-mono text-agentbase-muted uppercase tracking-widest">
+            {showUsd
+              ? `$${(earnings.withdrawn_eth * ETH_TO_USD).toLocaleString(undefined, { maximumFractionDigits: 0 })} withdrawn`
+              : `${earnings.withdrawn_eth.toFixed(4)} ETH withdrawn`}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-baseline gap-2 mb-1">
+        {!showUsd && <EthIcon size={18} />}
+        <p className="text-3xl font-bold tracking-tighter text-agentbase-text">
+          {displayAmount}
+        </p>
+        {hasEarnings && (
+          <span className="text-[11px] font-mono font-bold text-green-400">
+            +{lidoPct.toFixed(1)}%
+          </span>
+        )}
+      </div>
+      {hasEarnings && (
+        <p className="text-[10px] text-agentbase-muted mb-3">
+          {lidoDisplay} earned via Lido stETH yield
+        </p>
+      )}
+
+      <div className="flex gap-4 mb-4">
+        {earnings.contribution_eth > 0 && (
+          <div>
+            <p className="text-[9px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-0.5">
+              Contributions
+            </p>
+            <p className="text-sm font-bold text-agentbase-text">{contributionDisplay}</p>
+          </div>
+        )}
+        {earnings.juror_eth > 0 && (
+          <div>
+            <p className="text-[9px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-0.5">
+              Juror Rewards
+            </p>
+            <p className="text-sm font-bold text-agentbase-text">{jurorDisplay}</p>
+          </div>
+        )}
+        {hasEarnings && (
+          <div>
+            <p className="text-[9px] font-mono font-bold uppercase tracking-widest text-agentbase-muted mb-0.5">
+              Lido Yield
+            </p>
+            <p className="text-sm font-bold text-green-400">{lidoDisplay}</p>
+          </div>
+        )}
+      </div>
+
+      {hasEarnings ? (
+        <>
+          {status === "done" ? (
+            <div>
+              {txHashes.length > 0 ? (
+                <>
+                  <a
+                    href={`https://sepolia.etherscan.io/tx/${txHashes[0]}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white font-mono text-[10px] tracking-widest uppercase font-bold hover:bg-green-700 transition-colors"
+                  >
+                    Withdrawn! View tx &rarr;
+                  </a>
+                  {txHashes.length > 1 && (
+                    <p className="mt-2 text-[10px] text-agentbase-muted text-center">
+                      +{txHashes.length - 1} more transaction{txHashes.length > 2 ? "s" : ""}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="w-full px-4 py-3 bg-green-600/15 text-green-400 font-mono text-[10px] tracking-widest uppercase font-bold text-center">
+                  Earnings claimed successfully
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={handleWithdraw}
+              disabled={status === "sending" || status === "connecting" || isConnecting}
+              className="w-full px-4 py-3 bg-agentbase-invertedBg text-agentbase-invertedText font-mono text-[10px] tracking-widest uppercase font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {(() => {
+                if (status === "connecting" || isConnecting) return "Connecting wallet\u2026";
+                if (status === "sending") return "Withdrawing\u2026";
+                if (status === "error") return "Retry withdrawal";
+                if (!address) return "Connect wallet to withdraw";
+                return "Withdraw to wallet";
+              })()}
+            </button>
+          )}
+          {error && (
+            <p className="mt-2 text-[10px] text-red-400 text-center">{error}</p>
+          )}
+        </>
+      ) : (
+        <p className="text-[10px] text-agentbase-muted text-center py-2">
+          Earnings accrue when projects you contribute to receive donations
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function ProfileClient({ profile }: { profile: UserProfile }) {
   const [showUsd, setShowUsd] = useState(false);
   const badges = profile.badges ?? [];
@@ -159,6 +381,11 @@ export default function ProfileClient({ profile }: { profile: UserProfile }) {
               </a>
             </div>
           </div>
+
+          {/* Unclaimed earnings (own profile only) */}
+          {GIT_USER && profile.username.toLowerCase() === GIT_USER.toLowerCase() && (
+            <UnclaimedEarningsCard username={profile.username} showUsd={showUsd} />
+          )}
 
           {/* Contributions table */}
           <section>

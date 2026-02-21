@@ -61,6 +61,21 @@ export default function Navbar({ maxW = "64rem" }: { maxW?: string }) {
               <EthIcon size={12} />
               Donate
             </Link>
+            {process.env.NEXT_PUBLIC_GIT_USER && (
+              <Link
+                href={`/user/${process.env.NEXT_PUBLIC_GIT_USER}`}
+                className="shrink-0 rounded-full border border-agentbase-border hover:border-agentbase-accent transition-colors overflow-hidden"
+                aria-label="My profile"
+              >
+                <img
+                  src={`https://github.com/${process.env.NEXT_PUBLIC_GIT_USER}.png?size=64`}
+                  alt={process.env.NEXT_PUBLIC_GIT_USER}
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 object-cover"
+                />
+              </Link>
+            )}
           </div>
         </div>
       </div>
