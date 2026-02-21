@@ -113,7 +113,9 @@ def _build_subject_summary(
     edge_meta = edge.get("metadata") or {}
 
     if q_type == "contributor":
-        commits = target_meta.get("total_commits")
+        commits = target_meta.get("total_commits") or edge_meta.get(
+            "contributor_total_commits"
+        )
         additions = target_meta.get("total_additions")
         deletions = target_meta.get("total_deletions")
 
@@ -160,7 +162,9 @@ def _build_subject_summary(
             )
         if edge_meta.get("is_dev_dependency") is True:
             sentences.append("Used only during development, not in production")
-        return ". ".join(sentences) + "." if sentences else "A dependency of this project."
+        return (
+            ". ".join(sentences) + "." if sentences else "A dependency of this project."
+        )
 
     if q_type == "citation":
         purpose = ""
@@ -175,10 +179,12 @@ def _build_subject_summary(
         if explicit is not None:
             sentences.append("Directly cited {} times".format(_fmt_int(explicit)))
         if conceptual is not None and int(conceptual) > 0:
-            sentences.append(
-                "{} conceptual references".format(_fmt_int(conceptual))
-            )
-        return ". ".join(sentences) + "." if sentences else "A reference cited in this work."
+            sentences.append("{} conceptual references".format(_fmt_int(conceptual)))
+        return (
+            ". ".join(sentences) + "."
+            if sentences
+            else "A reference cited in this work."
+        )
 
     return ""
 
@@ -207,6 +213,7 @@ def _build_peers(
         weight = _clamp01(_safe_float(sib.get("weight"), 0.0))
 
         name = str(sib_node.get("label", sib_target_id))
+
         detail = _peer_detail(sib_meta, sib_edge_meta, q_type)
 
         peers.append(
@@ -228,10 +235,26 @@ def _peer_detail(
     q_type: str,
 ) -> str:
     if q_type == "contributor":
-        commits = node_meta.get("total_commits")
-        if commits is not None:
-            return "{} commits".format(_fmt_int(commits))
-        return ""
+        parts: list[str] = []
+        commits = node_meta.get("total_commits") or edge_meta.get(
+            "contributor_total_commits"
+        )
+        if commits is not None and int(commits) > 0:
+            parts.append("{} commits".format(_fmt_int(commits)))
+        lines = node_meta.get("total_lines") or edge_meta.get("contributor_total_lines")
+        if lines is not None and int(lines) > 0:
+            parts.append("{} lines changed".format(_fmt_int(lines)))
+        additions = node_meta.get("total_additions")
+        deletions = node_meta.get("total_deletions")
+        if additions is not None and deletions is not None:
+            total = int(additions) + int(deletions)
+            if total > 0:
+                ratio = int(additions) / total
+                if ratio > 0.75:
+                    parts.append("mostly new code")
+                elif ratio < 0.3:
+                    parts.append("mostly refactoring")
+        return " · ".join(parts) if parts else ""
 
     if q_type == "dependency":
         parts: list[str] = []
@@ -244,9 +267,7 @@ def _peer_detail(
         return " · ".join(parts)
 
     if q_type == "citation":
-        purpose = str(
-            node_meta.get("purpose") or node_meta.get("title") or ""
-        ).strip()
+        purpose = str(node_meta.get("purpose") or node_meta.get("title") or "").strip()
         if purpose:
             return purpose[:60]
         explicit = node_meta.get("explicit_mentions")
@@ -529,11 +550,13 @@ async def get_jury_questions(
 
             prompt = _build_prompt(q_type, project.name, target_label)
             peers = _build_peers(edge, edges, node_by_id, q_type)
-            peer_rank = next(
-                (i + 1 for i, p in enumerate(peers) if p.is_subject), 0
-            )
+            peer_rank = next((i + 1 for i, p in enumerate(peers) if p.is_subject), 0)
             subject_summary = _build_subject_summary(
-                target_node, edge, q_type, peer_rank, len(peers),
+                target_node,
+                edge,
+                q_type,
+                peer_rank,
+                len(peers),
             )
             links = _build_links(project, source_node, target_node, q_type)
 
@@ -567,6 +590,7 @@ async def get_jury_questions(
     sample_size = min(count, len(candidates))
     questions = random.sample(candidates, sample_size)
     questions = await _enrich_questions_with_code(questions)
+    questions = await _enrich_peer_stats(questions)
     return JuryQuestionsResponse(questions=questions)
 
 
@@ -639,11 +663,160 @@ async def _enrich_questions_with_code(
                     )
                 )
 
-        enriched[idx] = enriched[idx].model_copy(
-            update={"code_samples": samples[:5]}
+        enriched[idx] = enriched[idx].model_copy(update={"code_samples": samples[:5]})
+
+    return enriched
+
+
+# ---------------------------------------------------------------------------
+# Peer stats enrichment — fetch from GitHub when graph data is sparse
+# ---------------------------------------------------------------------------
+
+
+async def _enrich_peer_stats(
+    questions: List[JuryQuestion],
+) -> List[JuryQuestion]:
+    """Fetch contributor stats from GitHub for questions with empty peer details."""
+    from app.services.github import fetch_contributor_stats
+
+    needs: List[Tuple[int, str, str]] = []  # (question_idx, owner, repo)
+    for i, q in enumerate(questions):
+        if q.edge.question_type != "contributor":
+            continue
+        if any(p.detail for p in q.peers):
+            continue
+        owner_repo = _owner_repo_from_node_id(q.edge.source_id)
+        if not owner_repo:
+            continue
+        needs.append((i, owner_repo[0], owner_repo[1]))
+
+    if not needs:
+        return questions
+
+    unique_repos: Dict[str, Tuple[str, str]] = {}
+    for _, owner, repo in needs:
+        key = "{}/{}".format(owner, repo).lower()
+        if key not in unique_repos:
+            unique_repos[key] = (owner, repo)
+
+    logger.info(
+        "[JURY] Fetching live contributor stats for %d repos (%d questions)",
+        len(unique_repos),
+        len(needs),
+    )
+
+    repo_keys = list(unique_repos.keys())
+    fetch_results = await asyncio.gather(
+        *(
+            fetch_contributor_stats(unique_repos[k][0], unique_repos[k][1])
+            for k in repo_keys
+        ),
+        return_exceptions=True,
+    )
+
+    cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for key, result in zip(repo_keys, fetch_results):
+        if isinstance(result, Exception) or not result:
+            continue
+        cache[key] = {
+            str(s.get("login", "")).lower(): s for s in result
+        }
+
+    enriched = list(questions)
+    for idx, owner, repo in needs:
+        repo_key = "{}/{}".format(owner, repo).lower()
+        stats_by_login = cache.get(repo_key)
+        if not stats_by_login:
+            continue
+
+        q = enriched[idx]
+
+        new_peers: List[JuryPeer] = []
+        for peer in q.peers:
+            stats = stats_by_login.get(peer.name.lower())
+            if stats and not peer.detail:
+                new_peers.append(
+                    peer.model_copy(update={"detail": _detail_from_stats(stats)})
+                )
+            else:
+                new_peers.append(peer)
+
+        subject_stats = stats_by_login.get(q.subject_name.lower())
+        new_summary = q.subject_summary
+        if subject_stats and "commit" not in q.subject_summary:
+            peer_rank = next(
+                (i + 1 for i, p in enumerate(new_peers) if p.is_subject), 0
+            )
+            new_summary = _summary_from_stats(
+                subject_stats,
+                peer_rank,
+                len(new_peers),
+            )
+
+        enriched[idx] = q.model_copy(
+            update={"peers": new_peers, "subject_summary": new_summary}
         )
 
     return enriched
+
+
+def _detail_from_stats(stats: Dict[str, Any]) -> str:
+    parts: list[str] = []
+    commits = stats.get("total_commits")
+    if commits and int(commits) > 0:
+        parts.append("{} commits".format(_fmt_int(commits)))
+    lines = stats.get("total_lines")
+    if lines and int(lines) > 0:
+        parts.append("{} lines changed".format(_fmt_int(lines)))
+    additions = stats.get("total_additions")
+    deletions = stats.get("total_deletions")
+    if additions is not None and deletions is not None:
+        total = int(additions) + int(deletions)
+        if total > 0:
+            ratio = int(additions) / total
+            if ratio > 0.75:
+                parts.append("mostly new code")
+            elif ratio < 0.3:
+                parts.append("mostly refactoring")
+    return " · ".join(parts)
+
+
+def _summary_from_stats(
+    stats: Dict[str, Any],
+    peer_rank: int,
+    total_peers: int,
+) -> str:
+    if peer_rank == 1 and total_peers > 1:
+        rank_text = "The project's most active contributor"
+    elif peer_rank == 2 and total_peers > 2:
+        rank_text = "The second most active contributor"
+    elif peer_rank <= 3 and total_peers > 3:
+        rank_text = "One of the top contributors"
+    elif total_peers > 1:
+        rank_text = "Contributor #{} of {}".format(peer_rank, total_peers)
+    else:
+        rank_text = "A contributor to this project"
+
+    work_bits: list[str] = []
+    commits = stats.get("total_commits")
+    if commits and int(commits) > 0:
+        work_bits.append("with {} commits".format(_fmt_int(commits)))
+    additions = stats.get("total_additions")
+    deletions = stats.get("total_deletions")
+    if additions is not None and deletions is not None:
+        add_val, del_val = int(additions), int(deletions)
+        total = add_val + del_val
+        if total > 0:
+            ratio = add_val / total
+            if ratio > 0.8:
+                work_bits.append("primarily writing new code and features")
+            elif ratio < 0.3:
+                work_bits.append("focused on refactoring and cleanup")
+            else:
+                work_bits.append("a mix of new features and maintenance")
+    if work_bits:
+        return "{}, {}.".format(rank_text, ", ".join(work_bits))
+    return rank_text + "."
 
 
 # ---------------------------------------------------------------------------
@@ -687,13 +860,17 @@ async def _upsert_priors(
         correction = avg_human / max(avg_ai, 0.01)
 
         existing = (
-            await session.execute(
-                select(JuryPrior).where(
-                    JuryPrior.entity_name == entity_name,
-                    JuryPrior.entity_type == entity_type,
+            (
+                await session.execute(
+                    select(JuryPrior).where(
+                        JuryPrior.entity_name == entity_name,
+                        JuryPrior.entity_type == entity_type,
+                    )
                 )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
 
         if existing:
             n = existing.vote_count

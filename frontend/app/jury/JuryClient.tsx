@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import { fetchJuryQuestions, submitJuryAnswers } from "@/lib/api";
@@ -35,44 +35,42 @@ function PeerBar({ peer, maxPct }: { peer: JuryPeer; maxPct: number }) {
   const isSubject = peer.is_subject;
 
   return (
-    <div className={`py-1.5 ${isSubject ? "" : ""}`}>
-      <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 py-1.5">
+      <div className="shrink-0">
         <span
-          className={`w-28 shrink-0 truncate text-sm ${
+          className={`block whitespace-nowrap text-sm ${
             isSubject
               ? "font-semibold text-agentbase-text"
               : "text-agentbase-muted"
           }`}
-          title={peer.name}
         >
           {peer.name}
         </span>
-
-        <div className="flex-1 h-5 bg-agentbase-border/30 rounded-sm overflow-hidden">
-          <div
-            className={`h-full rounded-sm transition-all duration-300 ${
-              isSubject ? "bg-agentbase-accent" : "bg-agentbase-muted/40"
-            }`}
-            style={{ width: `${Math.max(barWidth, 1)}%` }}
-          />
-        </div>
-
-        <span
-          className={`w-14 shrink-0 text-right text-sm tabular-nums ${
-            isSubject
-              ? "font-semibold text-agentbase-text"
-              : "text-agentbase-muted"
-          }`}
-        >
-          {peer.ai_pct.toFixed(1)}%
-        </span>
+        {peer.detail && (
+          <span className="block whitespace-nowrap text-[11px] text-agentbase-muted/70">
+            {peer.detail}
+          </span>
+        )}
       </div>
 
-      {peer.detail && (
-        <p className="ml-[calc(7rem+0.75rem)] text-xs text-agentbase-muted mt-0.5 leading-snug">
-          {peer.detail}
-        </p>
-      )}
+      <div className="flex-1 h-4 bg-agentbase-border/30 rounded-sm overflow-hidden">
+        <div
+          className={`h-full rounded-sm transition-all duration-300 ${
+            isSubject ? "bg-agentbase-accent" : "bg-agentbase-muted/40"
+          }`}
+          style={{ width: `${Math.max(barWidth, 1)}%` }}
+        />
+      </div>
+
+      <span
+        className={`w-14 shrink-0 text-right text-sm tabular-nums ${
+          isSubject
+            ? "font-semibold text-agentbase-text"
+            : "text-agentbase-muted"
+        }`}
+      >
+        {peer.ai_pct.toFixed(1)}%
+      </span>
     </div>
   );
 }
@@ -185,7 +183,10 @@ export default function JuryClient() {
 
   /* ── Load questions ────────────────────────────── */
 
+  const loadIdRef = useRef(0);
+
   const loadQuestions = useCallback(async () => {
+    const id = ++loadIdRef.current;
     setLoading(true);
     setError(null);
     setSubmitState("idle");
@@ -193,6 +194,8 @@ export default function JuryClient() {
 
     try {
       const next = await fetchJuryQuestions(QUESTION_COUNT);
+      if (loadIdRef.current !== id) return;
+
       setQuestions(next);
       setCurrentIdx(0);
 
@@ -205,11 +208,12 @@ export default function JuryClient() {
       }
       setAnswers(initial);
     } catch (e: unknown) {
+      if (loadIdRef.current !== id) return;
       setError(e instanceof Error ? e.message : "Failed to load questions");
       setQuestions([]);
       setAnswers({});
     } finally {
-      setLoading(false);
+      if (loadIdRef.current === id) setLoading(false);
     }
   }, []);
 
@@ -423,7 +427,7 @@ export default function JuryClient() {
                     ? "All references (current AI estimate)"
                     : "All dependencies (current AI estimate)"}
               </p>
-              <div className="space-y-0.5">
+              <div>
                 {current.peers.map((peer) => (
                   <PeerBar
                     key={peer.name}
