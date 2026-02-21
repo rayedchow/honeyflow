@@ -41,8 +41,16 @@ async def insert_donation(
     amount_eth: float,
     tx_hash: Optional[str] = None,
 ) -> None:
-    """Insert a single donation record."""
+    """Insert a single donation record (skips if tx_hash already recorded)."""
     async with SessionLocal() as session:
+        if tx_hash:
+            dup = await session.execute(
+                text("SELECT 1 FROM donations WHERE tx_hash = :tx_hash"),
+                {"tx_hash": tx_hash},
+            )
+            if dup.first():
+                logger.debug("[DONATION_DB] Skipped duplicate tx_hash=%s", tx_hash)
+                return
         await session.execute(
             text("""
                 INSERT INTO donations (project_id, donator_address, amount_eth, tx_hash)

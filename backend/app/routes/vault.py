@@ -14,6 +14,7 @@ from app.schemas.vault import (
 )
 from app.services.privy import create_ethereum_wallet, find_donation, send_from_vault
 from app.services.vault_db import create_vault, get_vault
+from app.services.donation_db import insert_donation
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,12 @@ async def confirm_donate_endpoint(body: ConfirmDonateRequest):
         )
 
     if match:
+        await insert_donation(
+            project_id=body.project_id,
+            donator_address=body.donator_wallet,
+            amount_eth=body.amount_eth,
+            tx_hash=match["transaction_hash"],
+        )
         return ConfirmDonateResponse(
             confirmed=True,
             transaction_hash=match["transaction_hash"],

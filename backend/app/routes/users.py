@@ -8,6 +8,7 @@ from app.database import get_session
 from app.models.edge_vote import EdgeVote
 from app.models.project import Project
 from app.services.badges import compute_badges
+from app.services.donation_db import get_donation_totals
 from app.services.privy import send_from_vault
 from app.services.vault_db import get_vault
 from app.services.withdrawal_db import get_total_withdrawn, insert_withdrawal
@@ -68,10 +69,11 @@ async def get_user_profile(username: str, wallet: str | None = None):
             if pct > max_pct:
                 max_pct = pct
 
-            raised_usd = float(p.raised) if p.raised else 0.0
-            raised_eth = raised_usd / eth_to_usd if eth_to_usd else 0.0
-            share_usd = raised_usd * (pct / 100)
+            totals = await get_donation_totals(p.slug)
+            raised_eth = totals["total_eth"]
+            raised_usd = raised_eth * eth_to_usd
             share_eth = raised_eth * (pct / 100)
+            share_usd = raised_usd * (pct / 100)
 
             total_attributed_usd += share_usd
             total_attributed_eth += share_eth
@@ -161,8 +163,8 @@ async def get_user_earnings(username: str, wallet: str | None = None):
             if pct is None:
                 continue
 
-            raised_usd = float(p.raised) if p.raised else 0.0
-            raised_eth = raised_usd / eth_to_usd if eth_to_usd else 0.0
+            totals = await get_donation_totals(p.slug)
+            raised_eth = totals["total_eth"]
             share_eth = raised_eth * (pct / 100)
             contribution_eth += share_eth
 
